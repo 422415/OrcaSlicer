@@ -1,6 +1,15 @@
 name: Build Windows with Linux bridge runtime
 
 on:
+  push:
+    branches:
+      - bambu-bridge
+    paths:
+      - '.github/workflows/build_windows_bridge.yml'
+      - 'src/slic3r/Utils/PJarczakLinuxBridge/**'
+      - 'shared/pjarczak_linux_plugin_bridge_core/**'
+      - 'tools/pjarczak_bambu_linux_host/**'
+      - 'tools/pjarczak_bambu_runtime/**'
   workflow_call:
   workflow_dispatch:
 
