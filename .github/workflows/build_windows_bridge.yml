@@ -170,7 +170,31 @@ jobs:
           WindowsSdkDir: 'C:\Program Files (x86)\Windows Kits\10\'
           WindowsSDKVersion: '10.0.26100.0\'
         shell: pwsh
-        run: .\build_release_vs.bat slicer
+        run: |
+          .\build_release_vs.bat slicer
+          if ($LASTEXITCODE -ne 0) {
+            throw "build_release_vs.bat slicer failed with exit code $LASTEXITCODE"
+          }
+
+          $installDir = "$env:GITHUB_WORKSPACE\build\OrcaSlicer"
+          if (!(Test-Path $installDir)) {
+            Write-Host "Install output was not created by build_release_vs.bat; rerunning the install target to expose or recover the install failure."
+            cmake --build "$env:GITHUB_WORKSPACE\build" --config Release --target install --verbose
+            if ($LASTEXITCODE -ne 0) {
+              throw "cmake install target failed with exit code $LASTEXITCODE"
+            }
+          }
+
+          if (!(Test-Path $installDir)) {
+            Write-Host "Expected install output is still missing: $installDir"
+            if (Test-Path "$env:GITHUB_WORKSPACE\build\CMakeCache.txt") {
+              Select-String -Path "$env:GITHUB_WORKSPACE\build\CMakeCache.txt" -Pattern '^CMAKE_INSTALL_PREFIX'
+            }
+            if (Test-Path "$env:GITHUB_WORKSPACE\build") {
+              Get-ChildItem -Force "$env:GITHUB_WORKSPACE\build" | Format-Table Name, Length -AutoSize
+            }
+            throw "Orca install output was not created"
+          }
 
 
       - name: Ensure WSL is available for runtime validation
@@ -199,7 +223,11 @@ jobs:
       - name: Show packaged Orca runtime files
         shell: pwsh
         run: |
-          Get-ChildItem -Force "$env:GITHUB_WORKSPACE\build\OrcaSlicer" | Format-Table Name, Length -AutoSize
+          $installDir = "$env:GITHUB_WORKSPACE\build\OrcaSlicer"
+          if (!(Test-Path $installDir)) {
+            throw "Missing packaged Orca runtime directory: $installDir"
+          }
+          Get-ChildItem -Force $installDir | Format-Table Name, Length -AutoSize
 
       - name: Install bundled WSL2 Orca runtime into live plugins dir
         shell: pwsh
