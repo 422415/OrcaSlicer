@@ -3,6 +3,8 @@
 #include <nlohmann/json.hpp>
 #include "../../src/slic3r/Utils/bambu_networking.hpp"
 
+namespace BBL = ::Slic3r;
+
 namespace Slic3r::PJarczakLinuxBridge::JsonBridge {
 
 inline nlohmann::json to_json(const BBL::PrintParams& p)
@@ -47,7 +49,6 @@ inline nlohmann::json to_json(const BBL::PrintParams& p)
         {"auto_bed_leveling", p.auto_bed_leveling},
         {"auto_flow_cali", p.auto_flow_cali},
         {"auto_offset_cali", p.auto_offset_cali},
-        {"extruder_cali_manual_mode", p.extruder_cali_manual_mode},
         {"task_ext_change_assist", p.task_ext_change_assist},
         {"try_emmc_print", p.try_emmc_print}
     };
@@ -95,7 +96,6 @@ inline BBL::PrintParams print_params_from_json(const nlohmann::json& j)
     p.auto_bed_leveling = j.value("auto_bed_leveling", 0);
     p.auto_flow_cali = j.value("auto_flow_cali", 0);
     p.auto_offset_cali = j.value("auto_offset_cali", 0);
-    p.extruder_cali_manual_mode = j.value("extruder_cali_manual_mode", -1);
     p.task_ext_change_assist = j.value("task_ext_change_assist", false);
     p.try_emmc_print = j.value("try_emmc_print", false);
     return p;
