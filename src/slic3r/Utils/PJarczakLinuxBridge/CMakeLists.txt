@@ -13,6 +13,7 @@ set(PJARCZAK_LINUX_BRIDGE_INCLUDE_DIRS
     ${PJARCZAK_REPO_ROOT}
     ${PJARCZAK_REPO_ROOT}/src
     ${PJARCZAK_REPO_ROOT}/deps_src
+    ${PJARCZAK_REPO_ROOT}/deps/build/OrcaSlicer_dep/usr/local/include/eigen3
     ${CMAKE_BINARY_DIR}/src/libslic3r
 )
 
