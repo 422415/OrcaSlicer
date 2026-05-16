@@ -9,6 +9,7 @@ set(PJARCZAK_LINUX_BRIDGE_COMMON_SOURCES
 
 get_filename_component(PJARCZAK_REPO_ROOT "${CMAKE_CURRENT_LIST_DIR}/../../../.." ABSOLUTE)
 set(PJARCZAK_LINUX_HOST_DIR "${PJARCZAK_REPO_ROOT}/tools/pjarczak_bambu_linux_host")
+set(PJARCZAK_BAMBU_NETWORK_AGENT_VERSION "02.05.02.51")
 set(PJARCZAK_LINUX_BRIDGE_INCLUDE_DIRS
     ${PJARCZAK_REPO_ROOT}
     ${PJARCZAK_REPO_ROOT}/src
@@ -23,7 +24,7 @@ if (WIN32)
         ${CMAKE_CURRENT_LIST_DIR}/PJarczakLinuxSoBridgeLauncher_win.cpp
     )
     target_include_directories(pjarczak_bambu_networking_bridge PRIVATE ${PJARCZAK_LINUX_BRIDGE_INCLUDE_DIRS})
-    target_compile_definitions(pjarczak_bambu_networking_bridge PRIVATE PJARCZAK_LINUX_BRIDGE_LIGHTWEIGHT_TASKS=1 BAMBU_EXPORTS)
+    target_compile_definitions(pjarczak_bambu_networking_bridge PRIVATE PJARCZAK_LINUX_BRIDGE_LIGHTWEIGHT_TASKS=1 BAMBU_EXPORTS BAMBU_NETWORK_AGENT_VERSION="${PJARCZAK_BAMBU_NETWORK_AGENT_VERSION}")
     target_link_libraries(pjarczak_bambu_networking_bridge PRIVATE boost_headeronly boost_libs OpenSSL::Crypto)
 elseif (APPLE)
     add_library(pjarczak_bambu_networking_bridge SHARED
@@ -31,7 +32,7 @@ elseif (APPLE)
         ${CMAKE_CURRENT_LIST_DIR}/PJarczakLinuxSoBridgeLauncher_mac.mm
     )
     target_include_directories(pjarczak_bambu_networking_bridge PRIVATE ${PJARCZAK_LINUX_BRIDGE_INCLUDE_DIRS})
-    target_compile_definitions(pjarczak_bambu_networking_bridge PRIVATE PJARCZAK_LINUX_BRIDGE_LIGHTWEIGHT_TASKS=1)
+    target_compile_definitions(pjarczak_bambu_networking_bridge PRIVATE PJARCZAK_LINUX_BRIDGE_LIGHTWEIGHT_TASKS=1 BAMBU_NETWORK_AGENT_VERSION="${PJARCZAK_BAMBU_NETWORK_AGENT_VERSION}")
     target_link_libraries(pjarczak_bambu_networking_bridge PRIVATE boost_headeronly boost_libs OpenSSL::Crypto)
 else()
     add_library(pjarczak_bambu_networking_bridge SHARED
@@ -39,6 +40,7 @@ else()
         ${CMAKE_CURRENT_LIST_DIR}/PJarczakLinuxSoBridgeLauncher_linux.cpp
     )
     target_include_directories(pjarczak_bambu_networking_bridge PRIVATE ${PJARCZAK_LINUX_BRIDGE_INCLUDE_DIRS})
+    target_compile_definitions(pjarczak_bambu_networking_bridge PRIVATE BAMBU_NETWORK_AGENT_VERSION="${PJARCZAK_BAMBU_NETWORK_AGENT_VERSION}")
     target_link_libraries(pjarczak_bambu_networking_bridge PRIVATE boost_headeronly boost_libs OpenSSL::Crypto)
 endif()
 
@@ -70,6 +72,7 @@ if (UNIX AND NOT APPLE AND EXISTS "${PJARCZAK_LINUX_HOST_DIR}/main.cpp" AND EXIS
         target_compile_definitions(${target_name} PRIVATE
             PJARCZAK_LINUX_BRIDGE_STANDALONE_HOST=1
             PJARCZAK_LINUX_BRIDGE_LIGHTWEIGHT_TASKS=1
+            BAMBU_NETWORK_AGENT_VERSION="${PJARCZAK_BAMBU_NETWORK_AGENT_VERSION}"
             _GLIBCXX_USE_CXX11_ABI=${abi_value}
         )
         if (TARGET nlohmann_json::nlohmann_json)
