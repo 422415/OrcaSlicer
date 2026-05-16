@@ -1,5 +1,9 @@
 #include "PJarczakLinuxBridgeConfig.hpp"
 
+#ifndef BAMBU_NETWORK_AGENT_VERSION
+#define BAMBU_NETWORK_AGENT_VERSION "02.05.02.51"
+#endif
+
 #include <array>
 #include <cstdint>
 #include <fstream>

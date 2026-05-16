@@ -23,6 +23,7 @@
 #include "slic3r/GUI/I18N.hpp"
 
 #include <algorithm>
+#include <array>
 #include <iterator>
 #include <exception>
 #include <cstdlib>
@@ -3041,11 +3042,12 @@ void GUI_App::copy_network_if_available()
     };
 
     if (pj_force_linux_payload) {
-        for (const auto& file_name : {
+        const std::array<std::string, 4> linux_payload_files = {
                 Slic3r::PJarczakLinuxBridge::linux_network_library_name(),
                 Slic3r::PJarczakLinuxBridge::linux_source_library_name(),
                 "liblive555.so",
-                Slic3r::PJarczakLinuxBridge::linux_payload_manifest_file_name() }) {
+                Slic3r::PJarczakLinuxBridge::linux_payload_manifest_file_name() };
+        for (const auto& file_name : linux_payload_files) {
             const auto src = cache_folder / file_name;
             if (!boost::filesystem::exists(src))
                 continue;
