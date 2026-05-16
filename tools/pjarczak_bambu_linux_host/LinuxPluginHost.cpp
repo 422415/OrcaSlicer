@@ -23,6 +23,8 @@ using namespace std::chrono_literals;
 
 namespace Slic3r::PJarczakLinuxBridge {
 
+namespace BBL = ::Slic3r;
+
 namespace {
 
 std::atomic<Slic3r::PJarczakLinuxBridge::LinuxPluginHost*> g_active_host{nullptr};
