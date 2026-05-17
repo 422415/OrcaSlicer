@@ -150,6 +150,8 @@ if (WIN32)
     set(PJARCZAK_WSL_DISTRO_FILE_SOURCE ${CMAKE_SOURCE_DIR}/tools/pjarczak_bambu_runtime/wsl/pjarczak_wsl_distro.txt)
     set(PJARCZAK_RUNTIME_ASSEMBLER_SOURCE ${CMAKE_SOURCE_DIR}/tools/pjarczak_bambu_runtime/release/assemble_windows_runtime_bundle.ps1)
     set(PJARCZAK_PLUGIN_CACHE_SUBDIR_SOURCE ${CMAKE_SOURCE_DIR}/tools/pjarczak_bambu_runtime/wsl/pjarczak_plugin_cache_subdir.txt)
+    set(PJARCZAK_LINUX_HOST_RUNTIME_DIR ${CMAKE_SOURCE_DIR}/tools/pjarczak_bambu_linux_host/runtime/linux-x86_64)
+    set(PJARCZAK_WSL_ROOTFS_SOURCE ${CMAKE_SOURCE_DIR}/tools/pjarczak_bambu_runtime/rootfs/windows-wsl2-rootfs.tar)
     add_custom_command(TARGET pjarczak_bambu_networking_bridge POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E copy_if_different
             ${PJARCZAK_WSL_HELPER_SOURCE}
@@ -183,4 +185,14 @@ if (WIN32)
         ${PJARCZAK_PLUGIN_CACHE_SUBDIR_SOURCE}
         DESTINATION "."
     )
+    if (EXISTS "${PJARCZAK_LINUX_HOST_RUNTIME_DIR}")
+        install(DIRECTORY "${PJARCZAK_LINUX_HOST_RUNTIME_DIR}/"
+            DESTINATION "."
+        )
+    endif()
+    if (EXISTS "${PJARCZAK_WSL_ROOTFS_SOURCE}")
+        install(FILES ${PJARCZAK_WSL_ROOTFS_SOURCE}
+            DESTINATION "."
+        )
+    endif()
 endif()
