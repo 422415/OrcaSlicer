@@ -18,6 +18,9 @@
 
 namespace Slic3r::PJarczakLinuxBridge {
 
+namespace BBL = ::Slic3r;
+using OnUserLoginFn = std::function<void(int, bool)>;
+
 struct BridgeJobState;
 
 struct CachedSample {
@@ -55,7 +58,7 @@ struct BridgeAgent {
     bool multi_machine_enabled{false};
 
     BBL::OnMsgArrivedFn on_ssdp_msg;
-    BBL::OnUserLoginFn on_user_login;
+    OnUserLoginFn on_user_login;
     BBL::OnPrinterConnectedFn on_printer_connected;
     BBL::OnServerConnectedFn on_server_connected;
     BBL::OnHttpErrorFn on_http_error;
