@@ -18,6 +18,12 @@ set(PJARCZAK_LINUX_BRIDGE_INCLUDE_DIRS
     ${CMAKE_BINARY_DIR}/src/libslic3r
 )
 
+if (TARGET TBB::tbb)
+    set(PJARCZAK_LINUX_BRIDGE_TBB_LIB TBB::tbb)
+else()
+    set(PJARCZAK_LINUX_BRIDGE_TBB_LIB ${TBB_LIBRARIES})
+endif()
+
 if (WIN32)
     add_library(pjarczak_bambu_networking_bridge SHARED
         ${PJARCZAK_LINUX_BRIDGE_COMMON_SOURCES}
@@ -25,7 +31,7 @@ if (WIN32)
     )
     target_include_directories(pjarczak_bambu_networking_bridge PRIVATE ${PJARCZAK_LINUX_BRIDGE_INCLUDE_DIRS})
     target_compile_definitions(pjarczak_bambu_networking_bridge PRIVATE PJARCZAK_LINUX_BRIDGE_LIGHTWEIGHT_TASKS=1 BAMBU_EXPORTS BAMBU_NETWORK_AGENT_VERSION="${PJARCZAK_BAMBU_NETWORK_AGENT_VERSION}")
-    target_link_libraries(pjarczak_bambu_networking_bridge PRIVATE boost_headeronly boost_libs OpenSSL::Crypto)
+    target_link_libraries(pjarczak_bambu_networking_bridge PRIVATE boost_headeronly boost_libs OpenSSL::Crypto ${PJARCZAK_LINUX_BRIDGE_TBB_LIB})
 elseif (APPLE)
     add_library(pjarczak_bambu_networking_bridge SHARED
         ${PJARCZAK_LINUX_BRIDGE_COMMON_SOURCES}
