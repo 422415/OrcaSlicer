@@ -1,0 +1,78 @@
+name: Sync Bambu bridge nightly
+
+on:
+  schedule:
+    # GitHub schedules are UTC; 16:00 UTC is noon Eastern during daylight saving time.
+    - cron: '0 16 * * *'
+  workflow_dispatch:
+    inputs:
+      upstream_ref:
+        description: 'Upstream OrcaSlicer branch or ref to merge'
+        required: false
+        default: 'main'
+
+permissions:
+  contents: write
+  actions: write
+
+concurrency:
+  group: sync-bambu-bridge-nightly
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    name: Merge upstream and start bridge build
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: Checkout bambu bridge
+        uses: actions/checkout@v6
+        with:
+          ref: bambu-bridge
+          fetch-depth: 0
+          lfs: 'false'
+
+      - name: Configure git
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Merge latest upstream OrcaSlicer
+        id: merge
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          upstream_ref="${{ github.event.inputs.upstream_ref }}"
+          if [ -z "$upstream_ref" ]; then
+            upstream_ref="main"
+          fi
+
+          git remote add upstream https://github.com/SoftFever/OrcaSlicer.git
+          git fetch upstream "$upstream_ref:refs/remotes/upstream/$upstream_ref"
+
+          before="$(git rev-parse HEAD)"
+          git merge --no-edit -X ours "refs/remotes/upstream/$upstream_ref"
+          after="$(git rev-parse HEAD)"
+
+          if [ "$before" = "$after" ]; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            echo "bambu-bridge is already current with upstream/$upstream_ref"
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+            echo "Merged upstream/$upstream_ref into bambu-bridge: $after"
+          fi
+
+      - name: Push updated bambu bridge
+        if: steps.merge.outputs.changed == 'true'
+        shell: bash
+        run: |
+          git push origin HEAD:bambu-bridge
+
+      - name: Start Windows bridge nightly build
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh workflow run build_windows_bridge.yml --ref bambu-bridge

@@ -13,6 +13,10 @@ on:
   workflow_call:
   workflow_dispatch:
 
+permissions:
+  contents: write
+  actions: read
+
 jobs:
   prepare_linux_bridge_runtime:
     name: Prepare Linux bridge runtime
@@ -272,3 +276,54 @@ jobs:
           name: OrcaSlicer_Windows_${{ env.ver }}_installer
           path: ${{ github.workspace }}/build/OrcaSlicer*.exe
           if-no-files-found: error
+
+      - name: Publish bridge nightly release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          if (Get-Variable -Name PSNativeCommandUseErrorActionPreference -ErrorAction SilentlyContinue) {
+            $PSNativeCommandUseErrorActionPreference = $false
+          }
+
+          $tag = 'bambu-bridge-nightly'
+          $buildDir = Join-Path $env:GITHUB_WORKSPACE 'build'
+          $portable = Join-Path $buildDir "OrcaSlicer_Windows_${env:ver}_portable.zip"
+          if (!(Test-Path $portable)) {
+            throw "Missing portable archive: $portable"
+          }
+
+          $installer = Get-ChildItem -Path $buildDir -Filter 'OrcaSlicer*.exe' | Sort-Object LastWriteTime -Descending | Select-Object -First 1
+          if ($null -eq $installer) {
+            throw "Missing installer in $buildDir"
+          }
+
+          $releasePortable = Join-Path $buildDir 'OrcaSlicer_Windows_bambu_bridge_nightly_portable.zip'
+          $releaseInstaller = Join-Path $buildDir 'OrcaSlicer_Windows_bambu_bridge_nightly_installer.exe'
+          Copy-Item -Force $portable $releasePortable
+          Copy-Item -Force $installer.FullName $releaseInstaller
+
+          git tag -f $tag $env:GITHUB_SHA
+          git push origin "refs/tags/$tag" --force
+
+          $notes = @"
+          OrcaSlicer Bambu bridge nightly build from bambu-bridge.
+
+          Commit: $env:GITHUB_SHA
+          Run: $env:GITHUB_SERVER_URL/$env:GITHUB_REPOSITORY/actions/runs/$env:GITHUB_RUN_ID
+          "@
+          $notesPath = Join-Path $env:RUNNER_TEMP 'bambu-bridge-nightly-notes.md'
+          Set-Content -Path $notesPath -Value $notes -Encoding UTF8
+
+          gh release view $tag --repo $env:GITHUB_REPOSITORY *> $null
+          if ($LASTEXITCODE -ne 0) {
+            gh release create $tag --repo $env:GITHUB_REPOSITORY --target $env:GITHUB_SHA --title 'OrcaSlicer Bambu Bridge Nightly' --notes-file $notesPath --prerelease
+            if ($LASTEXITCODE -ne 0) { throw "Failed to create release $tag" }
+          } else {
+            gh release edit $tag --repo $env:GITHUB_REPOSITORY --title 'OrcaSlicer Bambu Bridge Nightly' --notes-file $notesPath --prerelease
+            if ($LASTEXITCODE -ne 0) { throw "Failed to update release $tag" }
+          }
+
+          gh release upload $tag --repo $env:GITHUB_REPOSITORY $releasePortable $releaseInstaller --clobber
+          if ($LASTEXITCODE -ne 0) { throw "Failed to upload release assets" }
