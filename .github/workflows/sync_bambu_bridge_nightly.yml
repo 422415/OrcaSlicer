@@ -13,7 +13,6 @@ on:
 
 permissions:
   contents: write
-  actions: write
 
 concurrency:
   group: sync-bambu-bridge-nightly
@@ -21,7 +20,7 @@ concurrency:
 
 jobs:
   sync:
-    name: Merge upstream and start bridge build
+    name: Merge upstream
     runs-on: ubuntu-24.04
 
     steps:
@@ -70,9 +69,11 @@ jobs:
         run: |
           git push origin HEAD:bambu-bridge
 
-      - name: Start Windows bridge nightly build
+      - name: Report bridge build trigger
         shell: bash
-        env:
-          GH_TOKEN: ${{ github.token }}
         run: |
-          gh workflow run build_windows_bridge.yml --ref bambu-bridge
+          if [ "${{ steps.merge.outputs.changed }}" = "true" ]; then
+            echo "Pushed bambu-bridge; the bridge build workflow will run from the push trigger."
+          else
+            echo "No upstream changes were merged; no bridge build was needed."
+          fi
