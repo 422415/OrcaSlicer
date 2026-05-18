@@ -90,7 +90,7 @@ jobs:
     permissions:
       contents: write
       actions: read
-    uses: ./.github/workflows/build_windows_bridge.yml
+    uses: ./.github/workflows/build_windows_bridge_reusable.yml
     with:
       checkout_ref: ${{ needs.sync.outputs.merged_sha }}
       source_sha: ${{ needs.sync.outputs.merged_sha }}
