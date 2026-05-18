@@ -42,7 +42,7 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
-      - name: Check upstream Windows portable nightly
+      - name: Check upstream nightly release
         id: upstream_nightly
         shell: bash
         env:
@@ -65,23 +65,28 @@ jobs:
           import sys
 
           release_file, state_file, new_state_file, changed_file = sys.argv[1:5]
-          asset_name = "OrcaSlicer_Windows_nightly_portable.zip"
 
           with open(release_file, "r", encoding="utf-8") as fh:
               release = json.load(fh)
 
-          asset = next((item for item in release.get("assets", []) if item.get("name") == asset_name), None)
-          if asset is None:
-              raise SystemExit(f"Upstream nightly asset is missing: {asset_name}")
+          assets = sorted(
+              [
+                  {
+                      "name": asset["name"],
+                      "size": asset["size"],
+                      "updated_at": asset["updated_at"],
+                  }
+                  for asset in release.get("assets", [])
+              ],
+              key=lambda asset: asset["name"],
+          )
+          if not assets:
+              raise SystemExit("Upstream nightly release has no assets")
 
-          watched_asset = {
-              "name": asset["name"],
-              "size": asset["size"],
-              "updated_at": asset["updated_at"],
-          }
           payload = {
               "tag_name": release["tag_name"],
-              "asset": watched_asset,
+              "release_updated_at": release["updated_at"],
+              "assets": assets,
           }
           fingerprint = hashlib.sha256(
               json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
@@ -98,7 +103,8 @@ jobs:
           state = {
               "source_repo": "SoftFever/OrcaSlicer",
               "release_tag": release["tag_name"],
-              "watched_asset": watched_asset,
+              "release_updated_at": release["updated_at"],
+              "assets": assets,
               "fingerprint": fingerprint,
           }
           with open(new_state_file, "w", encoding="utf-8") as fh:
@@ -111,15 +117,16 @@ jobs:
               out.write(f"changed={str(changed).lower()}\n")
               out.write(f"fingerprint={fingerprint}\n")
               out.write(f"previous_fingerprint={previous_fingerprint}\n")
-              out.write(f"asset_updated_at={watched_asset['updated_at']}\n")
+              out.write(f"release_updated_at={release['updated_at']}\n")
+              out.write(f"asset_count={len(assets)}\n")
           PY
 
           changed="$(cat "$changed_file")"
           if [ "$changed" = "true" ]; then
             cp "$new_state_file" "$state_file"
-            echo "Upstream Windows portable nightly changed."
+            echo "Upstream nightly release changed."
           else
-            echo "Upstream Windows portable nightly is unchanged; no bridge build needed."
+            echo "Upstream nightly release is unchanged; no bridge build needed."
           fi
 
       - name: Merge latest upstream OrcaSlicer
