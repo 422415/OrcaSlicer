@@ -155,11 +155,6 @@ jobs:
       - name: setup MSVC
         uses: microsoft/setup-msbuild@v2
 
-      - name: Install nsis
-        shell: pwsh
-        run: |
-          choco install nsis -y
-
       - name: Build Windows deps
         working-directory: ${{ github.workspace }}
         env:
@@ -252,12 +247,6 @@ jobs:
         run: |
           & "$env:APPDATA\OrcaSlicer\plugins\verify_runtime.ps1" -PackageDir "$env:APPDATA\OrcaSlicer\plugins" -PluginCacheDir "$env:APPDATA\OrcaSlicer\ota\plugins" -AllowMissingLinuxPlugin
 
-      - name: Create installer Win
-        working-directory: ${{ github.workspace }}/build
-        shell: pwsh
-        run: |
-          cpack -G NSIS
-
       - name: Pack app
         working-directory: ${{ github.workspace }}/build
         shell: cmd
@@ -268,13 +257,6 @@ jobs:
         with:
           name: OrcaSlicer_Windows_${{ env.ver }}_portable
           path: ${{ github.workspace }}/build/OrcaSlicer_Windows_${{ env.ver }}_portable.zip
-          if-no-files-found: error
-
-      - name: Upload artifacts Win installer
-        uses: actions/upload-artifact@v7
-        with:
-          name: OrcaSlicer_Windows_${{ env.ver }}_installer
-          path: ${{ github.workspace }}/build/OrcaSlicer*.exe
           if-no-files-found: error
 
       - name: Publish bridge nightly release
@@ -294,15 +276,8 @@ jobs:
             throw "Missing portable archive: $portable"
           }
 
-          $installer = Get-ChildItem -Path $buildDir -Filter 'OrcaSlicer*.exe' | Sort-Object LastWriteTime -Descending | Select-Object -First 1
-          if ($null -eq $installer) {
-            throw "Missing installer in $buildDir"
-          }
-
           $releasePortable = Join-Path $buildDir 'OrcaSlicer_Windows_bambu_bridge_nightly_portable.zip'
-          $releaseInstaller = Join-Path $buildDir 'OrcaSlicer_Windows_bambu_bridge_nightly_installer.exe'
           Copy-Item -Force $portable $releasePortable
-          Copy-Item -Force $installer.FullName $releaseInstaller
 
           git tag -f $tag $env:GITHUB_SHA
           git push origin "refs/tags/$tag" --force
@@ -325,5 +300,10 @@ jobs:
             if ($LASTEXITCODE -ne 0) { throw "Failed to update release $tag" }
           }
 
-          gh release upload $tag --repo $env:GITHUB_REPOSITORY $releasePortable $releaseInstaller --clobber
+          gh release delete-asset $tag 'OrcaSlicer_Windows_bambu_bridge_nightly_installer.exe' --repo $env:GITHUB_REPOSITORY --yes
+          if ($LASTEXITCODE -ne 0) {
+            Write-Host 'No existing nightly installer asset to delete.'
+          }
+
+          gh release upload $tag --repo $env:GITHUB_REPOSITORY $releasePortable --clobber
           if ($LASTEXITCODE -ne 0) { throw "Failed to upload release assets" }
