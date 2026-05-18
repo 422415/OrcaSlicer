@@ -13,6 +13,7 @@ on:
 
 permissions:
   contents: write
+  actions: write
 
 concurrency:
   group: sync-bambu-bridge-nightly
@@ -78,20 +79,23 @@ jobs:
         shell: bash
         run: |
           if [ "${{ steps.merge.outputs.changed }}" = "true" ]; then
-            echo "Pushed bambu-bridge; the bridge build workflow will run from the push trigger."
+            echo "Pushed bambu-bridge; dispatching the bridge build workflow next."
           else
             echo "No upstream changes were merged; no bridge build was needed."
           fi
 
-  build_bridge:
-    name: Build bridge nightly
-    needs: sync
-    if: needs.sync.outputs.changed == 'true'
-    permissions:
-      contents: write
-      actions: read
-    uses: ./.github/workflows/build_windows_bridge_reusable.yml
-    with:
-      checkout_ref: ${{ needs.sync.outputs.merged_sha }}
-      source_sha: ${{ needs.sync.outputs.merged_sha }}
-    secrets: inherit
+      - name: Start Windows bridge nightly build
+        if: steps.merge.outputs.changed == 'true'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          for attempt in 1 2 3 4 5; do
+            echo "Dispatching build_windows_bridge.yml attempt $attempt"
+            if gh workflow run build_windows_bridge.yml --ref bambu-bridge; then
+              exit 0
+            fi
+            sleep $((attempt * 15))
+          done
+          exit 1
