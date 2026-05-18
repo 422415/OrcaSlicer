@@ -22,6 +22,9 @@ jobs:
   sync:
     name: Merge upstream
     runs-on: ubuntu-24.04
+    outputs:
+      changed: ${{ steps.merge.outputs.changed }}
+      merged_sha: ${{ steps.merge.outputs.after }}
 
     steps:
       - name: Checkout bambu bridge
@@ -57,9 +60,11 @@ jobs:
 
           if [ "$before" = "$after" ]; then
             echo "changed=false" >> "$GITHUB_OUTPUT"
+            echo "after=$after" >> "$GITHUB_OUTPUT"
             echo "bambu-bridge is already current with upstream/$upstream_ref"
           else
             echo "changed=true" >> "$GITHUB_OUTPUT"
+            echo "after=$after" >> "$GITHUB_OUTPUT"
             echo "Merged upstream/$upstream_ref into bambu-bridge: $after"
           fi
 
@@ -77,3 +82,16 @@ jobs:
           else
             echo "No upstream changes were merged; no bridge build was needed."
           fi
+
+  build_bridge:
+    name: Build bridge nightly
+    needs: sync
+    if: needs.sync.outputs.changed == 'true'
+    permissions:
+      contents: write
+      actions: read
+    uses: ./.github/workflows/build_windows_bridge.yml
+    with:
+      checkout_ref: ${{ needs.sync.outputs.merged_sha }}
+      source_sha: ${{ needs.sync.outputs.merged_sha }}
+    secrets: inherit

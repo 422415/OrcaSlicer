@@ -5,11 +5,30 @@ on:
     branches:
       - bambu-bridge
   workflow_call:
+    inputs:
+      checkout_ref:
+        description: 'Git ref or SHA to checkout for the build'
+        required: false
+        type: string
+        default: ''
+      source_sha:
+        description: 'Source commit SHA to use for artifacts and release metadata'
+        required: false
+        type: string
+        default: ''
   workflow_dispatch:
+    inputs:
+      checkout_ref:
+        description: 'Git ref or SHA to checkout for the build'
+        required: false
+        default: ''
 
 permissions:
   contents: write
   actions: read
+
+env:
+  BRIDGE_SOURCE_SHA: ${{ inputs.source_sha || github.sha }}
 
 jobs:
   prepare_linux_bridge_runtime:
@@ -20,6 +39,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6
         with:
+          ref: ${{ inputs.checkout_ref || github.event.inputs.checkout_ref || github.ref }}
           lfs: 'false'
 
       - uses: lukka/get-cmake@latest
@@ -58,8 +78,8 @@ jobs:
           cmake --build build --config Release --target pjarczak_bambu_linux_host
           bash tools/pjarczak_bambu_linux_host/package_linux_host_runtime.sh build
           bash tools/pjarczak_bambu_runtime/rootfs/build_windows_wsl_rootfs.sh tools/pjarczak_bambu_runtime/rootfs/windows-wsl2-rootfs.tar
-          tar -czvf linux_host_runtime_${{ github.sha }}.tar.gz -C tools/pjarczak_bambu_linux_host/runtime linux-x86_64
-          tar -czvf wsl_rootfs_${{ github.sha }}.tar.gz -C tools/pjarczak_bambu_runtime/rootfs windows-wsl2-rootfs.tar
+          tar -czvf linux_host_runtime_${{ env.BRIDGE_SOURCE_SHA }}.tar.gz -C tools/pjarczak_bambu_linux_host/runtime linux-x86_64
+          tar -czvf wsl_rootfs_${{ env.BRIDGE_SOURCE_SHA }}.tar.gz -C tools/pjarczak_bambu_runtime/rootfs windows-wsl2-rootfs.tar
 
       - name: Show packaged linux bridge runtime files
         shell: bash
@@ -70,15 +90,15 @@ jobs:
       - name: Upload linux host runtime artifact
         uses: actions/upload-artifact@v7
         with:
-          name: linux_host_runtime_${{ github.sha }}
-          path: ./linux_host_runtime_${{ github.sha }}.tar.gz
+          name: linux_host_runtime_${{ env.BRIDGE_SOURCE_SHA }}
+          path: ./linux_host_runtime_${{ env.BRIDGE_SOURCE_SHA }}.tar.gz
           if-no-files-found: error
 
       - name: Upload WSL rootfs artifact
         uses: actions/upload-artifact@v7
         with:
-          name: wsl_rootfs_${{ github.sha }}
-          path: ./wsl_rootfs_${{ github.sha }}.tar.gz
+          name: wsl_rootfs_${{ env.BRIDGE_SOURCE_SHA }}
+          path: ./wsl_rootfs_${{ env.BRIDGE_SOURCE_SHA }}.tar.gz
           if-no-files-found: error
 
   build_windows:
@@ -92,6 +112,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6
         with:
+          ref: ${{ inputs.checkout_ref || github.event.inputs.checkout_ref || github.ref }}
           lfs: 'false'
 
       - uses: lukka/get-cmake@latest
@@ -123,7 +144,7 @@ jobs:
       - name: Download linux host runtime artifact
         uses: actions/download-artifact@v8
         with:
-          name: linux_host_runtime_${{ github.sha }}
+          name: linux_host_runtime_${{ env.BRIDGE_SOURCE_SHA }}
           path: ${{ github.workspace }}/linux_host_runtime_artifact
 
       - name: Extract linux host runtime artifact on Windows
@@ -131,12 +152,12 @@ jobs:
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force -Path "$env:GITHUB_WORKSPACE\tools\pjarczak_bambu_linux_host\runtime" | Out-Null
-          tar -xzf "$env:GITHUB_WORKSPACE\linux_host_runtime_artifact\linux_host_runtime_${{ github.sha }}.tar.gz" -C "$env:GITHUB_WORKSPACE\tools\pjarczak_bambu_linux_host\runtime"
+          tar -xzf "$env:GITHUB_WORKSPACE\linux_host_runtime_artifact\linux_host_runtime_${env:BRIDGE_SOURCE_SHA}.tar.gz" -C "$env:GITHUB_WORKSPACE\tools\pjarczak_bambu_linux_host\runtime"
 
       - name: Download WSL rootfs artifact
         uses: actions/download-artifact@v8
         with:
-          name: wsl_rootfs_${{ github.sha }}
+          name: wsl_rootfs_${{ env.BRIDGE_SOURCE_SHA }}
           path: ${{ github.workspace }}/wsl_rootfs_artifact
 
       - name: Extract WSL rootfs artifact on Windows
@@ -144,7 +165,7 @@ jobs:
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force -Path "$env:GITHUB_WORKSPACE\tools\pjarczak_bambu_runtime\rootfs" | Out-Null
-          tar -xzf "$env:GITHUB_WORKSPACE\wsl_rootfs_artifact\wsl_rootfs_${{ github.sha }}.tar.gz" -C "$env:GITHUB_WORKSPACE\tools\pjarczak_bambu_runtime\rootfs"
+          tar -xzf "$env:GITHUB_WORKSPACE\wsl_rootfs_artifact\wsl_rootfs_${env:BRIDGE_SOURCE_SHA}.tar.gz" -C "$env:GITHUB_WORKSPACE\tools\pjarczak_bambu_runtime\rootfs"
 
       - name: setup MSVC
         uses: microsoft/setup-msbuild@v2
@@ -273,21 +294,21 @@ jobs:
           $releasePortable = Join-Path $buildDir 'OrcaSlicer_Windows_bambu_bridge_nightly_portable.zip'
           Copy-Item -Force $portable $releasePortable
 
-          git tag -f $tag $env:GITHUB_SHA
+          git tag -f $tag $env:BRIDGE_SOURCE_SHA
           git push origin "refs/tags/$tag" --force
 
           $notes = @"
-          OrcaSlicer Bambu bridge nightly build from bambu-bridge.
+OrcaSlicer Bambu bridge nightly build from bambu-bridge.
 
-          Commit: $env:GITHUB_SHA
-          Run: $env:GITHUB_SERVER_URL/$env:GITHUB_REPOSITORY/actions/runs/$env:GITHUB_RUN_ID
-          "@
+Commit: $env:BRIDGE_SOURCE_SHA
+Run: $env:GITHUB_SERVER_URL/$env:GITHUB_REPOSITORY/actions/runs/$env:GITHUB_RUN_ID
+"@
           $notesPath = Join-Path $env:RUNNER_TEMP 'bambu-bridge-nightly-notes.md'
           Set-Content -Path $notesPath -Value $notes -Encoding UTF8
 
           gh release view $tag --repo $env:GITHUB_REPOSITORY *> $null
           if ($LASTEXITCODE -ne 0) {
-            gh release create $tag --repo $env:GITHUB_REPOSITORY --target $env:GITHUB_SHA --title 'OrcaSlicer Bambu Bridge Nightly' --notes-file $notesPath --prerelease
+            gh release create $tag --repo $env:GITHUB_REPOSITORY --target $env:BRIDGE_SOURCE_SHA --title 'OrcaSlicer Bambu Bridge Nightly' --notes-file $notesPath --prerelease
             if ($LASTEXITCODE -ne 0) { throw "Failed to create release $tag" }
           } else {
             gh release edit $tag --repo $env:GITHUB_REPOSITORY --title 'OrcaSlicer Bambu Bridge Nightly' --notes-file $notesPath --prerelease
