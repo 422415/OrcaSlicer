@@ -1,0 +1,10 @@
+{
+  "source_repo": "SoftFever/OrcaSlicer",
+  "release_tag": "nightly-builds",
+  "watched_asset": {
+    "name": "OrcaSlicer_Windows_nightly_portable.zip",
+    "size": 161643395,
+    "updated_at": "2026-05-18T20:06:23Z"
+  },
+  "fingerprint": "072d120d8f432f2e35679a59516c0620e243cb449cf56aef079162cab7eff9ee"
+}

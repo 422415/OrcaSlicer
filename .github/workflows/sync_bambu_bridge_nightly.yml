@@ -2,14 +2,18 @@ name: Sync Bambu bridge nightly
 
 on:
   schedule:
-    # GitHub schedules are UTC; 16:00 UTC is noon Eastern during daylight saving time.
-    - cron: '0 16 * * *'
+    # Poll for the upstream Windows portable nightly; the state file below prevents no-op builds.
+    - cron: '17,47 * * * *'
   workflow_dispatch:
     inputs:
       upstream_ref:
         description: 'Upstream OrcaSlicer branch or ref to merge'
         required: false
         default: 'main'
+      force_build:
+        description: 'Build even if the upstream Windows portable nightly fingerprint has not changed'
+        required: false
+        default: 'false'
 
 permissions:
   contents: write
@@ -21,11 +25,8 @@ concurrency:
 
 jobs:
   sync:
-    name: Merge upstream
+    name: Check upstream nightly and start bridge build
     runs-on: ubuntu-24.04
-    outputs:
-      changed: ${{ steps.merge.outputs.changed }}
-      merged_sha: ${{ steps.merge.outputs.after }}
 
     steps:
       - name: Checkout bambu bridge
@@ -41,8 +42,88 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
+      - name: Check upstream Windows portable nightly
+        id: upstream_nightly
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          FORCE_BUILD: ${{ github.event.inputs.force_build || 'false' }}
+        run: |
+          set -euo pipefail
+
+          state_file=".github/orcaslicer-nightly-release-state.json"
+          release_file="$(mktemp)"
+          new_state_file="$(mktemp)"
+          changed_file="$(mktemp)"
+
+          gh api repos/SoftFever/OrcaSlicer/releases/tags/nightly-builds > "$release_file"
+
+          python3 - "$release_file" "$state_file" "$new_state_file" "$changed_file" <<'PY'
+          import hashlib
+          import json
+          import os
+          import sys
+
+          release_file, state_file, new_state_file, changed_file = sys.argv[1:5]
+          asset_name = "OrcaSlicer_Windows_nightly_portable.zip"
+
+          with open(release_file, "r", encoding="utf-8") as fh:
+              release = json.load(fh)
+
+          asset = next((item for item in release.get("assets", []) if item.get("name") == asset_name), None)
+          if asset is None:
+              raise SystemExit(f"Upstream nightly asset is missing: {asset_name}")
+
+          watched_asset = {
+              "name": asset["name"],
+              "size": asset["size"],
+              "updated_at": asset["updated_at"],
+          }
+          payload = {
+              "tag_name": release["tag_name"],
+              "asset": watched_asset,
+          }
+          fingerprint = hashlib.sha256(
+              json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
+          ).hexdigest()
+
+          previous_fingerprint = ""
+          if os.path.exists(state_file):
+              with open(state_file, "r", encoding="utf-8") as fh:
+                  previous_fingerprint = json.load(fh).get("fingerprint", "")
+
+          force_build = os.environ.get("FORCE_BUILD", "").lower() == "true"
+          changed = force_build or fingerprint != previous_fingerprint
+
+          state = {
+              "source_repo": "SoftFever/OrcaSlicer",
+              "release_tag": release["tag_name"],
+              "watched_asset": watched_asset,
+              "fingerprint": fingerprint,
+          }
+          with open(new_state_file, "w", encoding="utf-8") as fh:
+              json.dump(state, fh, indent=2)
+              fh.write("\n")
+          with open(changed_file, "w", encoding="utf-8") as fh:
+              fh.write(str(changed).lower())
+
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as out:
+              out.write(f"changed={str(changed).lower()}\n")
+              out.write(f"fingerprint={fingerprint}\n")
+              out.write(f"previous_fingerprint={previous_fingerprint}\n")
+              out.write(f"asset_updated_at={watched_asset['updated_at']}\n")
+          PY
+
+          changed="$(cat "$changed_file")"
+          if [ "$changed" = "true" ]; then
+            cp "$new_state_file" "$state_file"
+            echo "Upstream Windows portable nightly changed."
+          else
+            echo "Upstream Windows portable nightly is unchanged; no bridge build needed."
+          fi
+
       - name: Merge latest upstream OrcaSlicer
-        id: merge
+        if: steps.upstream_nightly.outputs.changed == 'true'
         shell: bash
         run: |
           set -euo pipefail
@@ -54,38 +135,26 @@ jobs:
 
           git remote add upstream https://github.com/SoftFever/OrcaSlicer.git
           git fetch upstream "$upstream_ref:refs/remotes/upstream/$upstream_ref"
-
-          before="$(git rev-parse HEAD)"
           git merge --no-edit -X ours "refs/remotes/upstream/$upstream_ref"
-          after="$(git rev-parse HEAD)"
-
-          if [ "$before" = "$after" ]; then
-            echo "changed=false" >> "$GITHUB_OUTPUT"
-            echo "after=$after" >> "$GITHUB_OUTPUT"
-            echo "bambu-bridge is already current with upstream/$upstream_ref"
-          else
-            echo "changed=true" >> "$GITHUB_OUTPUT"
-            echo "after=$after" >> "$GITHUB_OUTPUT"
-            echo "Merged upstream/$upstream_ref into bambu-bridge: $after"
-          fi
 
       - name: Push updated bambu bridge
-        if: steps.merge.outputs.changed == 'true'
+        id: push
+        if: steps.upstream_nightly.outputs.changed == 'true'
         shell: bash
         run: |
-          git push origin HEAD:bambu-bridge
+          set -euo pipefail
 
-      - name: Report bridge build trigger
-        shell: bash
-        run: |
-          if [ "${{ steps.merge.outputs.changed }}" = "true" ]; then
-            echo "Pushed bambu-bridge; dispatching the bridge build workflow next."
-          else
-            echo "No upstream changes were merged; no bridge build was needed."
+          git add .github/orcaslicer-nightly-release-state.json
+          if ! git diff --cached --quiet; then
+            git commit -m "Track upstream Orca nightly release"
           fi
 
+          head_sha="$(git rev-parse HEAD)"
+          echo "head_sha=$head_sha" >> "$GITHUB_OUTPUT"
+          git push origin HEAD:bambu-bridge
+
       - name: Start Windows bridge nightly build
-        if: steps.merge.outputs.changed == 'true'
+        if: steps.upstream_nightly.outputs.changed == 'true'
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}

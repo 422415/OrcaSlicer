@@ -1,10 +1,6 @@
 name: Build Windows with Linux bridge runtime
 
 on:
-  push:
-    branches:
-      - bambu-bridge
-  workflow_call:
   workflow_dispatch:
 
 permissions:
