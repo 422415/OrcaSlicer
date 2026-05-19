@@ -419,6 +419,10 @@ private:
     // Adaptive PA last set flow to enable issuing of PA change commands when adaptive PA for overhangs
     // is enabled
     double          m_last_mm3_mm = 0;
+    bool            m_first_layer_start_prime_started = false;
+    bool            m_first_layer_start_prime_done = false;
+    double          m_first_layer_start_prime_remaining = 0.;
+    double          m_first_layer_start_prime_distance_remaining = 0.;
     // Orca: Adaptive PA code segment end
 
     // Extruding multiple objects with soluble / non-soluble / combined supports

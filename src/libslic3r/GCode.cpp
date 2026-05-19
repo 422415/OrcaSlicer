@@ -2440,6 +2440,10 @@ void GCode::_do_export(Print& print, GCodeOutputStream &file, ThumbnailsGenerato
     m_last_width = 0.f;
     m_is_role_based_fan_on.fill(false);
     m_role_based_fan_marker_layer.fill(-1);
+    m_first_layer_start_prime_started = false;
+    m_first_layer_start_prime_done = false;
+    m_first_layer_start_prime_remaining = 0.;
+    m_first_layer_start_prime_distance_remaining = 0.;
 
     m_fan_mover.release();
     
@@ -6428,6 +6432,46 @@ std::string GCode::_extrude(const ExtrusionPath &path, std::string description, 
     double e_per_mm = m_writer.filament()->e_per_mm3() * _mm3_per_mm;
     e_per_mm /= filament_flow_ratio;
 
+    auto apply_first_layer_start_prime = [this, &path](double segment_length, double extrusion_length) {
+        if (segment_length <= EPSILON ||
+            extrusion_length <= EPSILON ||
+            path.is_force_no_extrusion() ||
+            !this->on_first_layer() ||
+            m_first_layer_start_prime_done) {
+            return extrusion_length;
+        }
+
+        if (!m_first_layer_start_prime_started) {
+            const double prime_amount = m_config.first_layer_start_prime_amount.value;
+            const double prime_distance = m_config.first_layer_start_prime_distance.value;
+            if (prime_amount <= EPSILON || prime_distance <= EPSILON) {
+                m_first_layer_start_prime_done = true;
+                return extrusion_length;
+            }
+            m_first_layer_start_prime_started = true;
+            m_first_layer_start_prime_remaining = prime_amount;
+            m_first_layer_start_prime_distance_remaining = prime_distance;
+        }
+
+        if (m_first_layer_start_prime_remaining <= EPSILON ||
+            m_first_layer_start_prime_distance_remaining <= EPSILON) {
+            m_first_layer_start_prime_done = true;
+            return extrusion_length;
+        }
+
+        const double consumed_distance = std::min(segment_length, m_first_layer_start_prime_distance_remaining);
+        const double extra_e = m_first_layer_start_prime_remaining * consumed_distance / m_first_layer_start_prime_distance_remaining;
+        m_first_layer_start_prime_remaining = std::max(0., m_first_layer_start_prime_remaining - extra_e);
+        m_first_layer_start_prime_distance_remaining = std::max(0., m_first_layer_start_prime_distance_remaining - consumed_distance);
+
+        if (m_first_layer_start_prime_remaining <= EPSILON ||
+            m_first_layer_start_prime_distance_remaining <= EPSILON) {
+            m_first_layer_start_prime_done = true;
+        }
+
+        return extrusion_length + extra_e;
+    };
+
     // set speed
     if (speed == -1) {
         if (path.role() == erPerimeter) {
@@ -6936,6 +6980,7 @@ std::string GCode::_extrude(const ExtrusionPath &path, std::string description, 
                         }
 
                         double e = dE * extrusion_ratio;
+                        e = apply_first_layer_start_prime(line_length, e);
 
                         double z = m_nominal_z + z_diff;
                         if (z < 0.1) {
@@ -6946,6 +6991,7 @@ std::string GCode::_extrude(const ExtrusionPath &path, std::string description, 
 
                     } else if (sloped == nullptr) {
                         // Normal extrusion
+                        dE = apply_first_layer_start_prime(line_length, dE);
                         gcode += m_writer.extrude_to_xy(
                             this->point_to_gcode(line.b.to_point()),
                             dE,
@@ -6955,9 +7001,11 @@ std::string GCode::_extrude(const ExtrusionPath &path, std::string description, 
                         const auto [z_ratio, e_ratio] = sloped->interpolate(path_length / total_length);
                         Vec2d dest2d = this->point_to_gcode(line.b.to_point());
                         Vec3d dest3d(dest2d(0), dest2d(1), get_sloped_z(z_ratio));
+                        double e = dE * e_ratio;
+                        e = apply_first_layer_start_prime(line_length, e);
                         gcode += m_writer.extrude_to_xyz(
                             dest3d,
-                            dE * e_ratio,
+                            e,
                             GCodeWriter::full_gcode_comment ? tempDescription : "", path.is_force_no_extrusion());
                     }
                 }
@@ -6985,6 +7033,7 @@ std::string GCode::_extrude(const ExtrusionPath &path, std::string description, 
                                     tempDescription += Slic3r::format(" | Old Flow Value: %0.5f Length: %0.5f",oldE, line_length);
                                 }
                             }
+                            dE = apply_first_layer_start_prime(line_length, dE);
                             gcode += m_writer.extrude_to_xy(
                                 this->point_to_gcode(line.b),
                                 dE,
@@ -7008,6 +7057,7 @@ std::string GCode::_extrude(const ExtrusionPath &path, std::string description, 
                                 tempDescription += Slic3r::format(" | Old Flow Value: %0.5f Length: %0.5f",oldE, arc_length);
                             }
                         }
+                        dE = apply_first_layer_start_prime(arc_length, dE);
                         gcode += m_writer.extrude_arc_to_xy(
                             this->point_to_gcode(arc.end_point),
                             center_offset,
@@ -7143,6 +7193,7 @@ std::string GCode::_extrude(const ExtrusionPath &path, std::string description, 
                 }
 
                 double e = dE * extrusion_ratio;
+                e = apply_first_layer_start_prime(line_length, e);
 
                 double z = m_nominal_z + z_diff;
                 if (z < 0.1) {
@@ -7152,12 +7203,15 @@ std::string GCode::_extrude(const ExtrusionPath &path, std::string description, 
                                                  GCodeWriter::full_gcode_comment ? tempDescription : "");
             } else if (sloped == nullptr) {
                 // Normal extrusion
+                dE = apply_first_layer_start_prime(line_length, dE);
                 gcode += m_writer.extrude_to_xy(p.head<2>(), dE, GCodeWriter::full_gcode_comment ? tempDescription : "");
             } else {
                 // Sloped extrusion
                 const auto [z_ratio, e_ratio] = sloped->interpolate(path_length / total_length);
                 Vec3d dest3d(p(0), p(1), get_sloped_z(z_ratio));
-                gcode += m_writer.extrude_to_xyz(dest3d, dE * e_ratio, GCodeWriter::full_gcode_comment ? tempDescription : "");
+                double e = dE * e_ratio;
+                e = apply_first_layer_start_prime(line_length, e);
+                gcode += m_writer.extrude_to_xyz(dest3d, e, GCodeWriter::full_gcode_comment ? tempDescription : "");
             }
 
             prev = p;
