@@ -1,0 +1,132 @@
+name: Windows launch smoke
+
+on:
+  workflow_dispatch:
+    inputs:
+      checkout_ref:
+        description: 'Git ref or SHA to checkout for the smoke build'
+        required: false
+        default: ''
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  windows_launch_smoke:
+    name: Build and launch Windows app
+    runs-on: windows-latest
+    env:
+      ORCA_UPDATER_SIG_KEY: ${{ secrets.ORCA_UPDATER_SIG_KEY }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ inputs.checkout_ref || github.ref }}
+          lfs: 'false'
+
+      - uses: lukka/get-cmake@latest
+        with:
+          cmakeVersion: "~4.3.0"
+          useLocalCache: true
+          useCloudCache: true
+
+      - name: setup MSVC
+        uses: microsoft/setup-msbuild@v2
+
+      - name: Restore Windows deps cache
+        id: cache_windows_deps
+        uses: actions/cache@v5
+        with:
+          path: ${{ github.workspace }}/deps/build/OrcaSlicer_dep
+          key: windows-cache-orcaslicer_deps-build-${{ hashFiles('deps/**') }}
+
+      - name: Build Windows deps
+        if: steps.cache_windows_deps.outputs.cache-hit != 'true'
+        working-directory: ${{ github.workspace }}
+        env:
+          WindowsSdkDir: 'C:\Program Files (x86)\Windows Kits\10\'
+          WindowsSDKVersion: '10.0.26100.0\'
+        shell: pwsh
+        run: .\build_release_vs.bat deps
+
+      - name: Build slicer Win
+        working-directory: ${{ github.workspace }}
+        env:
+          WindowsSdkDir: 'C:\Program Files (x86)\Windows Kits\10\'
+          WindowsSDKVersion: '10.0.26100.0\'
+        shell: pwsh
+        run: |
+          .\build_release_vs.bat slicer
+          if ($LASTEXITCODE -ne 0) {
+            throw "build_release_vs.bat slicer failed with exit code $LASTEXITCODE"
+          }
+
+      - name: Launch clean-profile smoke test
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $sourceDir = Join-Path $env:GITHUB_WORKSPACE 'build\OrcaSlicer'
+          if (!(Test-Path $sourceDir)) {
+            throw "Missing built app directory: $sourceDir"
+          }
+
+          $smokeDir = Join-Path $env:RUNNER_TEMP 'OrcaSlicerSmokeApp'
+          $dataDir = Join-Path $env:RUNNER_TEMP 'OrcaSlicerSmokeData'
+          Remove-Item -Recurse -Force $smokeDir, $dataDir -ErrorAction SilentlyContinue
+          Copy-Item -Recurse -Force $sourceDir $smokeDir
+          New-Item -ItemType Directory -Force -Path $dataDir | Out-Null
+
+          # This smoke test is for GUI startup. Keep WSL/network bootstrap out of the loop.
+          $bridgeDll = Join-Path $smokeDir 'pjarczak_bambu_networking_bridge.dll'
+          if (Test-Path $bridgeDll) {
+            Rename-Item -LiteralPath $bridgeDll -NewName 'pjarczak_bambu_networking_bridge.dll.smoke-disabled'
+          }
+
+          $exe = Join-Path $smokeDir 'orca-slicer.exe'
+          if (!(Test-Path $exe)) {
+            throw "Missing executable: $exe"
+          }
+
+          $process = Start-Process -FilePath $exe -WorkingDirectory $smokeDir -ArgumentList @('--datadir', $dataDir) -PassThru
+          Start-Sleep -Seconds 45
+
+          $logDir = Join-Path $dataDir 'log'
+          $crashLogs = @()
+          if (Test-Path $logDir) {
+            $crashLogs = @(Get-ChildItem -Path $logDir -Filter 'crash_*.log' -ErrorAction SilentlyContinue)
+          }
+
+          if ($process.HasExited) {
+            if ($crashLogs.Count -gt 0) {
+              Write-Host "Crash log:"
+              Get-Content -Path $crashLogs[0].FullName | Select-Object -First 120
+            }
+            throw "OrcaSlicer exited during startup smoke test with code $($process.ExitCode)"
+          }
+
+          if ($crashLogs.Count -gt 0) {
+            Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue
+            Write-Host "Crash log:"
+            Get-Content -Path $crashLogs[0].FullName | Select-Object -First 120
+            throw "OrcaSlicer wrote a crash log during startup smoke test"
+          }
+
+          Stop-Process -Id $process.Id -Force
+          Write-Host "OrcaSlicer stayed open for the startup smoke window."
+
+      - name: Upload smoke logs
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: windows-launch-smoke-logs-${{ github.sha }}
+          path: ${{ runner.temp }}/OrcaSlicerSmokeData/log
+          if-no-files-found: ignore
+
+      - name: Upload smoke app
+        uses: actions/upload-artifact@v7
+        with:
+          name: OrcaSlicer_Windows_smoke_${{ github.sha }}
+          path: ${{ github.workspace }}/build/OrcaSlicer
+          if-no-files-found: error
