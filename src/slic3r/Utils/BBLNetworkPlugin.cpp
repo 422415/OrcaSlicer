@@ -196,6 +196,8 @@ int BBLNetworkPlugin::initialize(bool using_backup, const std::string& version)
     std::string loaded_version;
     if (m_get_version) {
         loaded_version = m_get_version();
+        if (loaded_version.empty() && pj_bridge)
+            loaded_version = Slic3r::PJarczakLinuxBridge::expected_network_abi_version();
     }
 
     BOOST_LOG_TRIVIAL(info) << "BBLNetworkPlugin::initialize: legacy_mode="
@@ -263,7 +265,16 @@ std::string BBLNetworkPlugin::get_version() const
         return "00.00.00.00";
     }
     if (m_get_version) {
-        return m_get_version();
+        std::string version = m_get_version();
+        if (!version.empty()) {
+            return version;
+        }
+        if (Slic3r::PJarczakLinuxBridge::enabled() && Slic3r::PJarczakLinuxBridge::use_bridge_network_module()) {
+            BOOST_LOG_TRIVIAL(warning) << __FUNCTION__
+                << boost::format(", bridge did not report a version, using expected bridge ABI version!");
+            return Slic3r::PJarczakLinuxBridge::expected_network_abi_version();
+        }
+        return version;
     }
     BOOST_LOG_TRIVIAL(warning) << __FUNCTION__ << boost::format(", get_version not supported, return 00.00.00.00!");
     return "00.00.00.00";

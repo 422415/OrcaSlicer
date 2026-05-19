@@ -2820,6 +2820,22 @@ bool GUI_App::on_init_inner()
 
     // Orca: select network plugin version based on configured version string
     std::string configured_version = app_config->get_network_plugin_version();
+    if (Slic3r::PJarczakLinuxBridge::enabled()) {
+        const std::string bridge_version = Slic3r::PJarczakLinuxBridge::forced_client_version();
+        const bool bridge_library_available = Slic3r::NetworkAgent::versioned_library_exists(bridge_version);
+        const bool bridge_version_mismatch =
+            configured_version.empty() || extract_base_version(configured_version) != extract_base_version(bridge_version);
+
+        if ((app_config->get_bool("installed_networking") || bridge_library_available) && bridge_version_mismatch) {
+            BOOST_LOG_TRIVIAL(info) << "Normalizing Bambu bridge network plugin version from "
+                                    << (configured_version.empty() ? "empty" : configured_version)
+                                    << " to " << bridge_version;
+            app_config->set_bool("installed_networking", true);
+            app_config->set(SETTING_NETWORK_PLUGIN_VERSION, bridge_version);
+            app_config->save();
+            configured_version = bridge_version;
+        }
+    }
     NetworkAgent::use_legacy_network = (configured_version == BAMBU_NETWORK_AGENT_VERSION_LEGACY);
     BOOST_LOG_TRIVIAL(info) << "Network plugin mode: "
         << (NetworkAgent::use_legacy_network ? ("legacy (version: " + std::string(BAMBU_NETWORK_AGENT_VERSION_LEGACY) + ")") : ("modern (version: " + configured_version + ")"));
@@ -3166,17 +3182,18 @@ bool GUI_App::on_init_network(bool try_backup)
 
     if (Slic3r::PJarczakLinuxBridge::enabled()) {
         const std::string bridge_version = Slic3r::PJarczakLinuxBridge::forced_client_version();
-        if (!should_load_networking_plugin && Slic3r::NetworkAgent::versioned_library_exists(bridge_version)) {
-            BOOST_LOG_TRIVIAL(info) << __FUNCTION__ << ": enabling bundled Bambu bridge network plugin";
+        const bool bridge_library_available = Slic3r::NetworkAgent::versioned_library_exists(bridge_version);
+        const bool bridge_version_mismatch =
+            config_version.empty() || extract_base_version(config_version) != extract_base_version(bridge_version);
+
+        if ((should_load_networking_plugin || bridge_library_available) && bridge_version_mismatch) {
+            BOOST_LOG_TRIVIAL(info) << __FUNCTION__ << ": using bundled Bambu bridge network plugin version "
+                                    << bridge_version << " instead of "
+                                    << (config_version.empty() ? "empty" : config_version);
             app_config->set_bool("installed_networking", true);
             app_config->set(SETTING_NETWORK_PLUGIN_VERSION, bridge_version);
             app_config->save();
             should_load_networking_plugin = true;
-            config_version = bridge_version;
-        } else if (should_load_networking_plugin && config_version.empty()) {
-            BOOST_LOG_TRIVIAL(info) << __FUNCTION__ << ": setting bundled Bambu bridge network plugin version";
-            app_config->set(SETTING_NETWORK_PLUGIN_VERSION, bridge_version);
-            app_config->save();
             config_version = bridge_version;
         }
     }
