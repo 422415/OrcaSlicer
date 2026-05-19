@@ -5409,6 +5409,26 @@ void PrintConfigDef::init_fff_params()
     def->mode = comAdvanced;
     def->set_default_value(new ConfigOptionFloat(5));
 
+    def = this->add("visible_path_end_taper_amount", coFloat);
+    def->label = L("Visible path end taper amount");
+    def->category = L("Quality");
+    def->tooltip = L("Subtracts a small amount of extrusion, in filament millimeters, over the end of visible extrusion paths to reduce endpoint dots. This applies to external walls and top surfaces. Set to 0 to disable.");
+    def->sidetext = L("mm");
+    def->min = 0;
+    def->max = 1;
+    def->mode = comAdvanced;
+    def->set_default_value(new ConfigOptionFloat(0));
+
+    def = this->add("visible_path_end_taper_distance", coFloat);
+    def->label = L("Visible path end taper distance");
+    def->category = L("Quality");
+    def->tooltip = L("Distance over which the visible path end taper amount is blended out before the end of an external wall or top surface path.");
+    def->sidetext = L("mm");
+    def->min = 0;
+    def->max = 50;
+    def->mode = comAdvanced;
+    def->set_default_value(new ConfigOptionFloat(3));
+
     def = this->add("seam_slope_type", coEnum);
     def->label = L("Scarf joint seam (beta)");
     def->category = L("Quality");

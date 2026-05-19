@@ -6486,6 +6486,29 @@ std::string GCode::_extrude(const ExtrusionPath &path, std::string description, 
         return extrusion_length + extra_e;
     };
 
+    auto apply_visible_path_end_taper = [this, &path](double segment_start, double segment_end, double path_length, double extrusion_length) {
+        if (extrusion_length <= EPSILON ||
+            path.is_force_no_extrusion() ||
+            (path.role() != erExternalPerimeter && path.role() != erTopSolidInfill)) {
+            return extrusion_length;
+        }
+
+        const double taper_amount = m_config.visible_path_end_taper_amount.value;
+        const double taper_distance = std::min(m_config.visible_path_end_taper_distance.value, path_length);
+        if (taper_amount <= EPSILON || taper_distance <= EPSILON) {
+            return extrusion_length;
+        }
+
+        const double taper_start = path_length - taper_distance;
+        const double overlap = std::min(segment_end, path_length) - std::max(segment_start, taper_start);
+        if (overlap <= EPSILON) {
+            return extrusion_length;
+        }
+
+        const double taper_e = taper_amount * overlap / taper_distance;
+        return std::max(0., extrusion_length - taper_e);
+    };
+
     // set speed
     if (speed == -1) {
         if (path.role() == erPerimeter) {
@@ -6965,7 +6988,8 @@ std::string GCode::_extrude(const ExtrusionPath &path, std::string description, 
             // Attention: G2 and G3 is not supported in spiral_mode mode
             if (!m_config.enable_arc_fitting || path.polyline.fitting_result.empty() || m_config.spiral_mode || sloped != nullptr || path.z_contoured) {
                 double path_length = 0.;
-                double total_length = sloped == nullptr ? 0. : path.polyline.length() * SCALING_FACTOR;
+                const double path_total_length = path.polyline.length() * SCALING_FACTOR;
+                double total_length = sloped == nullptr ? 0. : path_total_length;
                 double saved_z      = m_writer.get_position().z();
 
                 for (const Line3& line : path.polyline.lines()) {
@@ -6973,6 +6997,7 @@ std::string GCode::_extrude(const ExtrusionPath &path, std::string description, 
                     const double line_length = line.length() * SCALING_FACTOR;
                     if (line_length < EPSILON)
                         continue;
+                    const double segment_start = path_length;
                     path_length += line_length;
                     auto dE = e_per_mm * line_length;
                     if (_needSAFC(path)) {
@@ -6995,6 +7020,7 @@ std::string GCode::_extrude(const ExtrusionPath &path, std::string description, 
 
                         double e = dE * extrusion_ratio;
                         e = apply_first_layer_start_prime(line_length, e);
+                        e = apply_visible_path_end_taper(segment_start, path_length, path_total_length, e);
 
                         double z = m_nominal_z + z_diff;
                         if (z < 0.1) {
@@ -7006,6 +7032,7 @@ std::string GCode::_extrude(const ExtrusionPath &path, std::string description, 
                     } else if (sloped == nullptr) {
                         // Normal extrusion
                         dE = apply_first_layer_start_prime(line_length, dE);
+                        dE = apply_visible_path_end_taper(segment_start, path_length, path_total_length, dE);
                         gcode += m_writer.extrude_to_xy(
                             this->point_to_gcode(line.b.to_point()),
                             dE,
@@ -7017,6 +7044,7 @@ std::string GCode::_extrude(const ExtrusionPath &path, std::string description, 
                         Vec3d dest3d(dest2d(0), dest2d(1), get_sloped_z(z_ratio));
                         double e = dE * e_ratio;
                         e = apply_first_layer_start_prime(line_length, e);
+                        e = apply_visible_path_end_taper(segment_start, path_length, path_total_length, e);
                         gcode += m_writer.extrude_to_xyz(
                             dest3d,
                             e,
@@ -7026,6 +7054,8 @@ std::string GCode::_extrude(const ExtrusionPath &path, std::string description, 
             } else {
                 // BBS: start to generate gcode from arc fitting data which includes line and arc
                 const std::vector<PathFittingData>& fitting_result = path.polyline.fitting_result;
+                double path_length = 0.;
+                const double path_total_length = path.polyline.length() * SCALING_FACTOR;
                 for (size_t fitting_index = 0; fitting_index < fitting_result.size(); fitting_index++) {
                     std::string tempDescription = description;
                     switch (fitting_result[fitting_index].path_type) {
@@ -7038,6 +7068,8 @@ std::string GCode::_extrude(const ExtrusionPath &path, std::string description, 
                             const double line_length = line.length() * SCALING_FACTOR;
                             if (line_length < EPSILON)
                                 continue;
+                            const double segment_start = path_length;
+                            path_length += line_length;
                             auto dE = e_per_mm * line_length;
                             if (_needSAFC(path)) {
                                 auto oldE = dE;
@@ -7048,6 +7080,7 @@ std::string GCode::_extrude(const ExtrusionPath &path, std::string description, 
                                 }
                             }
                             dE = apply_first_layer_start_prime(line_length, dE);
+                            dE = apply_visible_path_end_taper(segment_start, path_length, path_total_length, dE);
                             gcode += m_writer.extrude_to_xy(
                                 this->point_to_gcode(line.b),
                                 dE,
@@ -7061,6 +7094,8 @@ std::string GCode::_extrude(const ExtrusionPath &path, std::string description, 
                         const double arc_length = fitting_result[fitting_index].arc_data.length * SCALING_FACTOR;
                         if (arc_length < EPSILON)
                             continue;
+                        const double segment_start = path_length;
+                        path_length += arc_length;
                         const Vec2d center_offset = this->point_to_gcode(arc.center) - this->point_to_gcode(arc.start_point);
                         auto dE = e_per_mm * arc_length;
                         if (_needSAFC(path)) {
@@ -7072,6 +7107,7 @@ std::string GCode::_extrude(const ExtrusionPath &path, std::string description, 
                             }
                         }
                         dE = apply_first_layer_start_prime(arc_length, dE);
+                        dE = apply_visible_path_end_taper(segment_start, path_length, path_total_length, dE);
                         gcode += m_writer.extrude_arc_to_xy(
                             this->point_to_gcode(arc.end_point),
                             center_offset,
@@ -7091,15 +7127,11 @@ std::string GCode::_extrude(const ExtrusionPath &path, std::string description, 
     } else {
         double last_set_speed = new_points[0].speed * 60.0;
 
-        double total_length = 0;
-        if (sloped != nullptr) {
-            // Calculate total extrusion length
-            Points3 p;
-            p.reserve(new_points.size());
-            std::transform(new_points.begin(), new_points.end(), std::back_inserter(p), [](const ProcessedPoint& pp) { return pp.p; });
-            Polyline3 l(p);
-            total_length = l.length() * SCALING_FACTOR;
-        }
+        Points3 points_for_length;
+        points_for_length.reserve(new_points.size());
+        std::transform(new_points.begin(), new_points.end(), std::back_inserter(points_for_length), [](const ProcessedPoint& pp) { return pp.p; });
+        const double path_total_length = Polyline3(points_for_length).length() * SCALING_FACTOR;
+        const double total_length = sloped == nullptr ? 0. : path_total_length;
         gcode += m_writer.set_speed(last_set_speed, "", comment);
         Vec3d prev            = this->point_to_gcode_quantized(new_points[0].p);
         bool pre_fan_enabled = false;
@@ -7132,6 +7164,7 @@ std::string GCode::_extrude(const ExtrusionPath &path, std::string description, 
             const double line_length = (p - prev).norm();
             if(line_length < EPSILON)
                 continue;
+            const double segment_start = path_length;
             path_length += line_length;
             double new_speed = pre_processed_point.speed * 60.0;
             
@@ -7208,6 +7241,7 @@ std::string GCode::_extrude(const ExtrusionPath &path, std::string description, 
 
                 double e = dE * extrusion_ratio;
                 e = apply_first_layer_start_prime(line_length, e);
+                e = apply_visible_path_end_taper(segment_start, path_length, path_total_length, e);
 
                 double z = m_nominal_z + z_diff;
                 if (z < 0.1) {
@@ -7218,6 +7252,7 @@ std::string GCode::_extrude(const ExtrusionPath &path, std::string description, 
             } else if (sloped == nullptr) {
                 // Normal extrusion
                 dE = apply_first_layer_start_prime(line_length, dE);
+                dE = apply_visible_path_end_taper(segment_start, path_length, path_total_length, dE);
                 gcode += m_writer.extrude_to_xy(p.head<2>(), dE, GCodeWriter::full_gcode_comment ? tempDescription : "");
             } else {
                 // Sloped extrusion
@@ -7225,6 +7260,7 @@ std::string GCode::_extrude(const ExtrusionPath &path, std::string description, 
                 Vec3d dest3d(p(0), p(1), get_sloped_z(z_ratio));
                 double e = dE * e_ratio;
                 e = apply_first_layer_start_prime(line_length, e);
+                e = apply_visible_path_end_taper(segment_start, path_length, path_total_length, e);
                 gcode += m_writer.extrude_to_xyz(dest3d, e, GCodeWriter::full_gcode_comment ? tempDescription : "");
             }
 

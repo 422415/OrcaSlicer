@@ -1182,6 +1182,8 @@ PRINT_CONFIG_CLASS_DEFINE(
     ((ConfigOptionFloatOrPercent,       seam_gap))
     ((ConfigOptionFloat,                first_layer_start_prime_amount))
     ((ConfigOptionFloat,                first_layer_start_prime_distance))
+    ((ConfigOptionFloat,                visible_path_end_taper_amount))
+    ((ConfigOptionFloat,                visible_path_end_taper_distance))
     ((ConfigOptionBool,                 role_based_wipe_speed))
     ((ConfigOptionFloatOrPercent,       wipe_speed))
     ((ConfigOptionBool,                 wipe_on_loops))

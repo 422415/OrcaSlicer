@@ -2315,6 +2315,8 @@ void TabPrint::build()
         optgroup->append_single_option_line("seam_gap","quality_settings_seam#seam-gap");
         optgroup->append_single_option_line("first_layer_start_prime_amount", "quality_settings_seam#first-layer-start-prime");
         optgroup->append_single_option_line("first_layer_start_prime_distance", "quality_settings_seam#first-layer-start-prime");
+        optgroup->append_single_option_line("visible_path_end_taper_amount", "quality_settings_seam#visible-path-end-taper");
+        optgroup->append_single_option_line("visible_path_end_taper_distance", "quality_settings_seam#visible-path-end-taper");
         optgroup->append_single_option_line("seam_slope_type", "quality_settings_seam#scarf-joint-seam");
         optgroup->append_single_option_line("seam_slope_conditional", "quality_settings_seam#scarf-joint-seam");
         optgroup->append_single_option_line("scarf_angle_threshold", "quality_settings_seam#scarf-joint-seam");
