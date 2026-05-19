@@ -1,58 +1,58 @@
 {
   "source_repo": "SoftFever/OrcaSlicer",
   "release_tag": "nightly-builds",
-  "release_updated_at": "2026-05-18T22:47:28Z",
+  "release_updated_at": "2026-05-19T08:15:01Z",
   "assets": [
     {
       "name": "OrcaSlicer-Linux-flatpak_nightly_aarch64.flatpak",
-      "size": 121303288,
-      "updated_at": "2026-05-18T18:48:21Z"
+      "size": 121219096,
+      "updated_at": "2026-05-19T07:43:24Z"
     },
     {
       "name": "OrcaSlicer-Linux-flatpak_nightly_x86_64.flatpak",
-      "size": 126380376,
-      "updated_at": "2026-05-18T19:33:39Z"
+      "size": 126306544,
+      "updated_at": "2026-05-19T08:15:01Z"
     },
     {
       "name": "OrcaSlicer_Linux_AppImage_Ubuntu2404_nightly.AppImage",
-      "size": 132254200,
-      "updated_at": "2026-05-18T18:33:54Z"
+      "size": 132168184,
+      "updated_at": "2026-05-19T07:14:38Z"
     },
     {
       "name": "OrcaSlicer_Mac_universal_nightly.dmg",
-      "size": 232145795,
-      "updated_at": "2026-05-18T22:47:26Z"
+      "size": 233596440,
+      "updated_at": "2026-05-19T08:02:33Z"
     },
     {
       "name": "OrcaSlicer_Windows_Installer_nightly.exe",
-      "size": 131828642,
-      "updated_at": "2026-05-18T20:06:30Z"
+      "size": 131770529,
+      "updated_at": "2026-05-19T07:46:28Z"
     },
     {
       "name": "OrcaSlicer_Windows_nightly_portable.zip",
-      "size": 161643395,
-      "updated_at": "2026-05-18T20:06:23Z"
+      "size": 161538326,
+      "updated_at": "2026-05-19T07:46:22Z"
     },
     {
       "name": "OrcaSlicer_profile_validator_Linux_Ubuntu2404_nightly",
       "size": 11131392,
-      "updated_at": "2026-05-18T18:33:58Z"
+      "updated_at": "2026-05-19T07:14:42Z"
     },
     {
       "name": "OrcaSlicer_profile_validator_Mac_universal_nightly.dmg",
-      "size": 6949382,
-      "updated_at": "2026-05-18T22:47:28Z"
+      "size": 6949380,
+      "updated_at": "2026-05-19T08:02:36Z"
     },
     {
       "name": "OrcaSlicer_profile_validator_Windows_nightly.exe",
       "size": 3352064,
-      "updated_at": "2026-05-18T20:06:31Z"
+      "updated_at": "2026-05-19T07:46:29Z"
     },
     {
       "name": "orca_custom_preset_tests.zip",
       "size": 6782013,
-      "updated_at": "2026-05-18T18:34:00Z"
+      "updated_at": "2026-05-19T07:14:45Z"
     }
   ],
-  "fingerprint": "3c3306e95a05d3f98e3ab3744f8dd9f6f61585a35fbbbf2dd9c915211da53c1a"
+  "fingerprint": "e731a9d86763277c8943568d78b49c4800f324706128a2753c2c2ea6877bf53f"
 }
