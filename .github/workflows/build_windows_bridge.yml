@@ -4,6 +4,10 @@ on:
   workflow_call:
   workflow_dispatch:
 
+permissions:
+  contents: write
+  actions: read
+
 jobs:
   prepare_linux_bridge_runtime:
     name: Prepare Linux bridge runtime
@@ -142,11 +146,6 @@ jobs:
       - name: setup MSVC
         uses: microsoft/setup-msbuild@v2
 
-      - name: Install nsis
-        shell: pwsh
-        run: |
-          choco install nsis -y
-
       - name: Build Windows deps
         working-directory: ${{ github.workspace }}
         env:
@@ -161,7 +160,31 @@ jobs:
           WindowsSdkDir: 'C:\Program Files (x86)\Windows Kits\10\'
           WindowsSDKVersion: '10.0.26100.0\'
         shell: pwsh
-        run: .\build_release_vs.bat slicer
+        run: |
+          .\build_release_vs.bat slicer
+          if ($LASTEXITCODE -ne 0) {
+            throw "build_release_vs.bat slicer failed with exit code $LASTEXITCODE"
+          }
+
+          $installDir = "$env:GITHUB_WORKSPACE\build\OrcaSlicer"
+          if (!(Test-Path $installDir)) {
+            Write-Host "Install output was not created by build_release_vs.bat; rerunning the install target to expose or recover the install failure."
+            cmake --build "$env:GITHUB_WORKSPACE\build" --config Release --target install --verbose
+            if ($LASTEXITCODE -ne 0) {
+              throw "cmake install target failed with exit code $LASTEXITCODE"
+            }
+          }
+
+          if (!(Test-Path $installDir)) {
+            Write-Host "Expected install output is still missing: $installDir"
+            if (Test-Path "$env:GITHUB_WORKSPACE\build\CMakeCache.txt") {
+              Select-String -Path "$env:GITHUB_WORKSPACE\build\CMakeCache.txt" -Pattern '^CMAKE_INSTALL_PREFIX'
+            }
+            if (Test-Path "$env:GITHUB_WORKSPACE\build") {
+              Get-ChildItem -Force "$env:GITHUB_WORKSPACE\build" | Format-Table Name, Length -AutoSize
+            }
+            throw "Orca install output was not created"
+          }
 
 
       - name: Ensure WSL is available for runtime validation
@@ -190,7 +213,11 @@ jobs:
       - name: Show packaged Orca runtime files
         shell: pwsh
         run: |
-          Get-ChildItem -Force "$env:GITHUB_WORKSPACE\build\OrcaSlicer" | Format-Table Name, Length -AutoSize
+          $installDir = "$env:GITHUB_WORKSPACE\build\OrcaSlicer"
+          if (!(Test-Path $installDir)) {
+            throw "Missing packaged Orca runtime directory: $installDir"
+          }
+          Get-ChildItem -Force $installDir | Format-Table Name, Length -AutoSize
 
       - name: Install bundled WSL2 Orca runtime into live plugins dir
         shell: pwsh
@@ -211,12 +238,6 @@ jobs:
         run: |
           & "$env:APPDATA\OrcaSlicer\plugins\verify_runtime.ps1" -PackageDir "$env:APPDATA\OrcaSlicer\plugins" -PluginCacheDir "$env:APPDATA\OrcaSlicer\ota\plugins" -AllowMissingLinuxPlugin
 
-      - name: Create installer Win
-        working-directory: ${{ github.workspace }}/build
-        shell: pwsh
-        run: |
-          cpack -G NSIS
-
       - name: Pack app
         working-directory: ${{ github.workspace }}/build
         shell: cmd
@@ -229,9 +250,51 @@ jobs:
           path: ${{ github.workspace }}/build/OrcaSlicer_Windows_${{ env.ver }}_portable.zip
           if-no-files-found: error
 
-      - name: Upload artifacts Win installer
-        uses: actions/upload-artifact@v7
-        with:
-          name: OrcaSlicer_Windows_${{ env.ver }}_installer
-          path: ${{ github.workspace }}/build/OrcaSlicer*.exe
-          if-no-files-found: error
+      - name: Publish bridge nightly release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          if (Get-Variable -Name PSNativeCommandUseErrorActionPreference -ErrorAction SilentlyContinue) {
+            $PSNativeCommandUseErrorActionPreference = $false
+          }
+
+          $tag = 'bambu-bridge-nightly'
+          $buildDir = Join-Path $env:GITHUB_WORKSPACE 'build'
+          $portable = Join-Path $buildDir "OrcaSlicer_Windows_${env:ver}_portable.zip"
+          if (!(Test-Path $portable)) {
+            throw "Missing portable archive: $portable"
+          }
+
+          $releasePortable = Join-Path $buildDir 'OrcaSlicer_Windows_bambu_bridge_nightly_portable.zip'
+          Copy-Item -Force $portable $releasePortable
+
+          git tag -f $tag $env:GITHUB_SHA
+          git push origin "refs/tags/$tag" --force
+
+          $notes = @"
+          OrcaSlicer Bambu bridge nightly build from bambu-bridge.
+
+          Commit: $env:GITHUB_SHA
+          Run: $env:GITHUB_SERVER_URL/$env:GITHUB_REPOSITORY/actions/runs/$env:GITHUB_RUN_ID
+          "@
+          $notesPath = Join-Path $env:RUNNER_TEMP 'bambu-bridge-nightly-notes.md'
+          Set-Content -Path $notesPath -Value $notes -Encoding UTF8
+
+          gh release view $tag --repo $env:GITHUB_REPOSITORY *> $null
+          if ($LASTEXITCODE -ne 0) {
+            gh release create $tag --repo $env:GITHUB_REPOSITORY --target $env:GITHUB_SHA --title 'OrcaSlicer Bambu Bridge Nightly' --notes-file $notesPath --prerelease
+            if ($LASTEXITCODE -ne 0) { throw "Failed to create release $tag" }
+          } else {
+            gh release edit $tag --repo $env:GITHUB_REPOSITORY --title 'OrcaSlicer Bambu Bridge Nightly' --notes-file $notesPath --prerelease
+            if ($LASTEXITCODE -ne 0) { throw "Failed to update release $tag" }
+          }
+
+          gh release delete-asset $tag 'OrcaSlicer_Windows_bambu_bridge_nightly_installer.exe' --repo $env:GITHUB_REPOSITORY --yes
+          if ($LASTEXITCODE -ne 0) {
+            Write-Host 'No existing nightly installer asset to delete.'
+          }
+
+          gh release upload $tag --repo $env:GITHUB_REPOSITORY $releasePortable --clobber
+          if ($LASTEXITCODE -ne 0) { throw "Failed to upload release assets" }

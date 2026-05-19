@@ -1,0 +1,177 @@
+name: Sync Bambu bridge nightly
+
+on:
+  schedule:
+    # Poll for the upstream Windows portable nightly; the state file below prevents no-op builds.
+    - cron: '17,47 * * * *'
+  workflow_dispatch:
+    inputs:
+      upstream_ref:
+        description: 'Upstream OrcaSlicer branch or ref to merge'
+        required: false
+        default: 'main'
+      force_build:
+        description: 'Build even if the upstream Windows portable nightly fingerprint has not changed'
+        required: false
+        default: 'false'
+
+permissions:
+  contents: write
+  actions: write
+
+concurrency:
+  group: sync-bambu-bridge-nightly
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    name: Check upstream nightly and start bridge build
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: Checkout bambu bridge
+        uses: actions/checkout@v6
+        with:
+          ref: bambu-bridge
+          fetch-depth: 0
+          lfs: 'false'
+
+      - name: Configure git
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Check upstream nightly release
+        id: upstream_nightly
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          FORCE_BUILD: ${{ github.event.inputs.force_build || 'false' }}
+        run: |
+          set -euo pipefail
+
+          state_file=".github/orcaslicer-nightly-release-state.json"
+          release_file="$(mktemp)"
+          new_state_file="$(mktemp)"
+          changed_file="$(mktemp)"
+
+          gh api repos/SoftFever/OrcaSlicer/releases/tags/nightly-builds > "$release_file"
+
+          python3 - "$release_file" "$state_file" "$new_state_file" "$changed_file" <<'PY'
+          import hashlib
+          import json
+          import os
+          import sys
+
+          release_file, state_file, new_state_file, changed_file = sys.argv[1:5]
+
+          with open(release_file, "r", encoding="utf-8") as fh:
+              release = json.load(fh)
+
+          assets = sorted(
+              [
+                  {
+                      "name": asset["name"],
+                      "size": asset["size"],
+                      "updated_at": asset["updated_at"],
+                  }
+                  for asset in release.get("assets", [])
+              ],
+              key=lambda asset: asset["name"],
+          )
+          if not assets:
+              raise SystemExit("Upstream nightly release has no assets")
+
+          payload = {
+              "tag_name": release["tag_name"],
+              "release_updated_at": release["updated_at"],
+              "assets": assets,
+          }
+          fingerprint = hashlib.sha256(
+              json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
+          ).hexdigest()
+
+          previous_fingerprint = ""
+          if os.path.exists(state_file):
+              with open(state_file, "r", encoding="utf-8") as fh:
+                  previous_fingerprint = json.load(fh).get("fingerprint", "")
+
+          force_build = os.environ.get("FORCE_BUILD", "").lower() == "true"
+          changed = force_build or fingerprint != previous_fingerprint
+
+          state = {
+              "source_repo": "SoftFever/OrcaSlicer",
+              "release_tag": release["tag_name"],
+              "release_updated_at": release["updated_at"],
+              "assets": assets,
+              "fingerprint": fingerprint,
+          }
+          with open(new_state_file, "w", encoding="utf-8") as fh:
+              json.dump(state, fh, indent=2)
+              fh.write("\n")
+          with open(changed_file, "w", encoding="utf-8") as fh:
+              fh.write(str(changed).lower())
+
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as out:
+              out.write(f"changed={str(changed).lower()}\n")
+              out.write(f"fingerprint={fingerprint}\n")
+              out.write(f"previous_fingerprint={previous_fingerprint}\n")
+              out.write(f"release_updated_at={release['updated_at']}\n")
+              out.write(f"asset_count={len(assets)}\n")
+          PY
+
+          changed="$(cat "$changed_file")"
+          if [ "$changed" = "true" ]; then
+            cp "$new_state_file" "$state_file"
+            echo "Upstream nightly release changed."
+          else
+            echo "Upstream nightly release is unchanged; no bridge build needed."
+          fi
+
+      - name: Merge latest upstream OrcaSlicer
+        if: steps.upstream_nightly.outputs.changed == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          upstream_ref="${{ github.event.inputs.upstream_ref }}"
+          if [ -z "$upstream_ref" ]; then
+            upstream_ref="main"
+          fi
+
+          git remote add upstream https://github.com/SoftFever/OrcaSlicer.git
+          git fetch upstream "$upstream_ref:refs/remotes/upstream/$upstream_ref"
+          git merge --no-edit -X ours "refs/remotes/upstream/$upstream_ref"
+
+      - name: Push updated bambu bridge
+        id: push
+        if: steps.upstream_nightly.outputs.changed == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          git add .github/orcaslicer-nightly-release-state.json
+          if ! git diff --cached --quiet; then
+            git commit -m "Track upstream Orca nightly release"
+          fi
+
+          head_sha="$(git rev-parse HEAD)"
+          echo "head_sha=$head_sha" >> "$GITHUB_OUTPUT"
+          git push origin HEAD:bambu-bridge
+
+      - name: Start Windows bridge nightly build
+        if: steps.upstream_nightly.outputs.changed == 'true'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          for attempt in 1 2 3 4 5; do
+            echo "Dispatching build_windows_bridge.yml attempt $attempt"
+            if gh workflow run build_windows_bridge.yml --ref bambu-bridge; then
+              exit 0
+            fi
+            sleep $((attempt * 15))
+          done
+          exit 1

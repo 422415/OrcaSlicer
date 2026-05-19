@@ -23,6 +23,9 @@ using namespace std::chrono_literals;
 
 namespace Slic3r::PJarczakLinuxBridge {
 
+namespace BBL = ::Slic3r;
+using OnUserLoginFn = std::function<void(int, bool)>;
+
 namespace {
 
 std::atomic<Slic3r::PJarczakLinuxBridge::LinuxPluginHost*> g_active_host{nullptr};
@@ -296,7 +299,6 @@ BBL::PrintParams print_params_from_json(const nlohmann::json& j)
     p.auto_bed_leveling = j.value("auto_bed_leveling", 0);
     p.auto_flow_cali = j.value("auto_flow_cali", 0);
     p.auto_offset_cali = j.value("auto_offset_cali", 0);
-    p.extruder_cali_manual_mode = j.value("extruder_cali_manual_mode", -1);
     p.task_ext_change_assist = j.value("task_ext_change_assist", false);
     p.try_emmc_print = j.value("try_emmc_print", false);
     translate_print_params_paths(p);

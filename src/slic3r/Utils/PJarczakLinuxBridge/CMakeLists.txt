@@ -9,11 +9,20 @@ set(PJARCZAK_LINUX_BRIDGE_COMMON_SOURCES
 
 get_filename_component(PJARCZAK_REPO_ROOT "${CMAKE_CURRENT_LIST_DIR}/../../../.." ABSOLUTE)
 set(PJARCZAK_LINUX_HOST_DIR "${PJARCZAK_REPO_ROOT}/tools/pjarczak_bambu_linux_host")
+set(PJARCZAK_BAMBU_NETWORK_AGENT_VERSION "02.05.02.51")
 set(PJARCZAK_LINUX_BRIDGE_INCLUDE_DIRS
     ${PJARCZAK_REPO_ROOT}
     ${PJARCZAK_REPO_ROOT}/src
     ${PJARCZAK_REPO_ROOT}/deps_src
+    ${PJARCZAK_REPO_ROOT}/deps/build/OrcaSlicer_dep/usr/local/include/eigen3
+    ${CMAKE_BINARY_DIR}/src/libslic3r
 )
+
+if (TARGET TBB::tbb)
+    set(PJARCZAK_LINUX_BRIDGE_TBB_LIB TBB::tbb)
+else()
+    set(PJARCZAK_LINUX_BRIDGE_TBB_LIB ${TBB_LIBRARIES})
+endif()
 
 if (WIN32)
     add_library(pjarczak_bambu_networking_bridge SHARED
@@ -21,15 +30,15 @@ if (WIN32)
         ${CMAKE_CURRENT_LIST_DIR}/PJarczakLinuxSoBridgeLauncher_win.cpp
     )
     target_include_directories(pjarczak_bambu_networking_bridge PRIVATE ${PJARCZAK_LINUX_BRIDGE_INCLUDE_DIRS})
-    target_compile_definitions(pjarczak_bambu_networking_bridge PRIVATE PJARCZAK_LINUX_BRIDGE_LIGHTWEIGHT_TASKS=1 BAMBU_EXPORTS)
-    target_link_libraries(pjarczak_bambu_networking_bridge PRIVATE boost_headeronly boost_libs OpenSSL::Crypto)
+    target_compile_definitions(pjarczak_bambu_networking_bridge PRIVATE PJARCZAK_LINUX_BRIDGE_LIGHTWEIGHT_TASKS=1 BAMBU_EXPORTS BAMBU_NETWORK_AGENT_VERSION="${PJARCZAK_BAMBU_NETWORK_AGENT_VERSION}")
+    target_link_libraries(pjarczak_bambu_networking_bridge PRIVATE boost_headeronly boost_libs OpenSSL::Crypto ${PJARCZAK_LINUX_BRIDGE_TBB_LIB})
 elseif (APPLE)
     add_library(pjarczak_bambu_networking_bridge SHARED
         ${PJARCZAK_LINUX_BRIDGE_COMMON_SOURCES}
         ${CMAKE_CURRENT_LIST_DIR}/PJarczakLinuxSoBridgeLauncher_mac.mm
     )
     target_include_directories(pjarczak_bambu_networking_bridge PRIVATE ${PJARCZAK_LINUX_BRIDGE_INCLUDE_DIRS})
-    target_compile_definitions(pjarczak_bambu_networking_bridge PRIVATE PJARCZAK_LINUX_BRIDGE_LIGHTWEIGHT_TASKS=1)
+    target_compile_definitions(pjarczak_bambu_networking_bridge PRIVATE PJARCZAK_LINUX_BRIDGE_LIGHTWEIGHT_TASKS=1 BAMBU_NETWORK_AGENT_VERSION="${PJARCZAK_BAMBU_NETWORK_AGENT_VERSION}")
     target_link_libraries(pjarczak_bambu_networking_bridge PRIVATE boost_headeronly boost_libs OpenSSL::Crypto)
 else()
     add_library(pjarczak_bambu_networking_bridge SHARED
@@ -37,6 +46,7 @@ else()
         ${CMAKE_CURRENT_LIST_DIR}/PJarczakLinuxSoBridgeLauncher_linux.cpp
     )
     target_include_directories(pjarczak_bambu_networking_bridge PRIVATE ${PJARCZAK_LINUX_BRIDGE_INCLUDE_DIRS})
+    target_compile_definitions(pjarczak_bambu_networking_bridge PRIVATE BAMBU_NETWORK_AGENT_VERSION="${PJARCZAK_BAMBU_NETWORK_AGENT_VERSION}")
     target_link_libraries(pjarczak_bambu_networking_bridge PRIVATE boost_headeronly boost_libs OpenSSL::Crypto)
 endif()
 
@@ -68,6 +78,7 @@ if (UNIX AND NOT APPLE AND EXISTS "${PJARCZAK_LINUX_HOST_DIR}/main.cpp" AND EXIS
         target_compile_definitions(${target_name} PRIVATE
             PJARCZAK_LINUX_BRIDGE_STANDALONE_HOST=1
             PJARCZAK_LINUX_BRIDGE_LIGHTWEIGHT_TASKS=1
+            BAMBU_NETWORK_AGENT_VERSION="${PJARCZAK_BAMBU_NETWORK_AGENT_VERSION}"
             _GLIBCXX_USE_CXX11_ABI=${abi_value}
         )
         if (TARGET nlohmann_json::nlohmann_json)
@@ -139,6 +150,8 @@ if (WIN32)
     set(PJARCZAK_WSL_DISTRO_FILE_SOURCE ${CMAKE_SOURCE_DIR}/tools/pjarczak_bambu_runtime/wsl/pjarczak_wsl_distro.txt)
     set(PJARCZAK_RUNTIME_ASSEMBLER_SOURCE ${CMAKE_SOURCE_DIR}/tools/pjarczak_bambu_runtime/release/assemble_windows_runtime_bundle.ps1)
     set(PJARCZAK_PLUGIN_CACHE_SUBDIR_SOURCE ${CMAKE_SOURCE_DIR}/tools/pjarczak_bambu_runtime/wsl/pjarczak_plugin_cache_subdir.txt)
+    set(PJARCZAK_LINUX_HOST_RUNTIME_DIR ${CMAKE_SOURCE_DIR}/tools/pjarczak_bambu_linux_host/runtime/linux-x86_64)
+    set(PJARCZAK_WSL_ROOTFS_SOURCE ${CMAKE_SOURCE_DIR}/tools/pjarczak_bambu_runtime/rootfs/windows-wsl2-rootfs.tar)
     add_custom_command(TARGET pjarczak_bambu_networking_bridge POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E copy_if_different
             ${PJARCZAK_WSL_HELPER_SOURCE}
@@ -172,4 +185,14 @@ if (WIN32)
         ${PJARCZAK_PLUGIN_CACHE_SUBDIR_SOURCE}
         DESTINATION "."
     )
+    if (EXISTS "${PJARCZAK_LINUX_HOST_RUNTIME_DIR}")
+        install(DIRECTORY "${PJARCZAK_LINUX_HOST_RUNTIME_DIR}/"
+            DESTINATION "."
+        )
+    endif()
+    if (EXISTS "${PJARCZAK_WSL_ROOTFS_SOURCE}")
+        install(FILES ${PJARCZAK_WSL_ROOTFS_SOURCE}
+            DESTINATION "."
+        )
+    endif()
 endif()
