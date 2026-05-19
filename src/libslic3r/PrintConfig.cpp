@@ -5389,6 +5389,26 @@ void PrintConfigDef::init_fff_params()
     def->mode = comAdvanced;
     def->set_default_value(new ConfigOptionFloatOrPercent(10,true));
 
+    def = this->add("first_layer_start_prime_amount", coFloat);
+    def->label = L("First layer start prime amount");
+    def->category = L("Quality");
+    def->tooltip = L("Adds a small amount of extra extrusion, in filament millimeters, distributed over the start of the first extrusion on the first layer. With skirt or brim enabled, those paths consume the prime. With them disabled, the model start receives it. Set to 0 to disable.");
+    def->sidetext = L("mm");
+    def->min = 0;
+    def->max = 1;
+    def->mode = comAdvanced;
+    def->set_default_value(new ConfigOptionFloat(0));
+
+    def = this->add("first_layer_start_prime_distance", coFloat);
+    def->label = L("First layer start prime distance");
+    def->category = L("Quality");
+    def->tooltip = L("Distance over which the first layer start prime amount is blended into the first extrusion path on the first layer.");
+    def->sidetext = L("mm");
+    def->min = 0;
+    def->max = 50;
+    def->mode = comAdvanced;
+    def->set_default_value(new ConfigOptionFloat(5));
+
     def = this->add("seam_slope_type", coEnum);
     def->label = L("Scarf joint seam (beta)");
     def->category = L("Quality");
