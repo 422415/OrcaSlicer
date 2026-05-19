@@ -25,8 +25,11 @@ concurrency:
 
 jobs:
   sync:
-    name: Check upstream nightly and start bridge build
+    name: Check upstream nightly
     runs-on: ubuntu-24.04
+    outputs:
+      changed: ${{ steps.upstream_nightly.outputs.changed }}
+      head_sha: ${{ steps.push.outputs.head_sha }}
 
     steps:
       - name: Checkout bambu bridge
@@ -160,18 +163,15 @@ jobs:
           echo "head_sha=$head_sha" >> "$GITHUB_OUTPUT"
           git push origin HEAD:bambu-bridge
 
-      - name: Start Windows bridge nightly build
-        if: steps.upstream_nightly.outputs.changed == 'true'
-        shell: bash
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          set -euo pipefail
-          for attempt in 1 2 3 4 5; do
-            echo "Dispatching build_windows_bridge.yml attempt $attempt"
-            if gh workflow run build_windows_bridge.yml --ref bambu-bridge; then
-              exit 0
-            fi
-            sleep $((attempt * 15))
-          done
-          exit 1
+  build_bridge:
+    name: Build Windows with Linux bridge runtime
+    needs: sync
+    if: needs.sync.outputs.changed == 'true'
+    permissions:
+      contents: write
+      actions: read
+    uses: ./.github/workflows/build_windows_bridge.yml
+    with:
+      checkout_ref: ${{ needs.sync.outputs.head_sha }}
+      source_sha: ${{ needs.sync.outputs.head_sha }}
+    secrets: inherit
