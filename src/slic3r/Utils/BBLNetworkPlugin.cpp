@@ -92,11 +92,45 @@ int BBLNetworkPlugin::initialize(bool using_backup, const std::string& version)
 
 #if defined(_MSC_VER) || defined(_WIN32)
     if (pj_bridge) {
-        library = Slic3r::PJarczakLinuxBridge::bridge_network_library_path(plugin_folder);
-        wchar_t lib_wstr[512];
-        memset(lib_wstr, 0, sizeof(lib_wstr));
-        ::MultiByteToWideChar(CP_UTF8, 0, library.c_str(), int(library.size()) + 1, lib_wstr, int(sizeof(lib_wstr) / sizeof(lib_wstr[0])));
-        m_networking_module = LoadLibrary(lib_wstr);
+        std::vector<std::string> candidates;
+        candidates.push_back(Slic3r::PJarczakLinuxBridge::bridge_network_library_path(plugin_folder));
+
+        const std::string bundled_library = get_libpath_in_current_directory(Slic3r::PJarczakLinuxBridge::bridge_network_module_stem());
+        if (!bundled_library.empty() && bundled_library != candidates.front())
+            candidates.push_back(bundled_library);
+
+        DWORD last_error = ERROR_SUCCESS;
+        std::string attempted_paths;
+        for (const std::string& candidate : candidates) {
+            if (!attempted_paths.empty())
+                attempted_paths += "; ";
+            attempted_paths += candidate;
+
+            std::wstring lib_wstr;
+            const int size_needed = ::MultiByteToWideChar(CP_UTF8, 0, candidate.c_str(), int(candidate.size()), nullptr, 0);
+            if (size_needed <= 0) {
+                last_error = ::GetLastError();
+                continue;
+            }
+            lib_wstr.resize(size_needed);
+            ::MultiByteToWideChar(CP_UTF8, 0, candidate.c_str(), int(candidate.size()), lib_wstr.data(), size_needed);
+            m_networking_module = LoadLibraryW(lib_wstr.c_str());
+            if (m_networking_module) {
+                library = candidate;
+                break;
+            }
+            last_error = ::GetLastError();
+        }
+
+        if (!m_networking_module) {
+            set_load_error(
+                "Network bridge library not found",
+                "Could not load pjarczak Bambu bridge DLL. Tried: " + attempted_paths +
+                    "; Windows error: " + std::to_string(last_error),
+                attempted_paths
+            );
+            return -1;
+        }
     } else {
         library = plugin_folder.string() + "\\" + std::string(BAMBU_NETWORK_LIBRARY) + "_" + version + ".dll";
         wchar_t lib_wstr[256];
@@ -362,6 +396,19 @@ std::string BBLNetworkPlugin::get_versioned_library_path(const std::string& vers
     std::string data_dir_str = data_dir();
     boost::filesystem::path data_dir_path(data_dir_str);
     auto plugin_folder = data_dir_path / "plugins";
+
+    if (Slic3r::PJarczakLinuxBridge::enabled()) {
+        auto bridge_path = Slic3r::PJarczakLinuxBridge::bridge_network_library_path(plugin_folder);
+        if (boost::filesystem::exists(bridge_path))
+            return bridge_path;
+
+#if defined(_MSC_VER) || defined(_WIN32)
+        auto bundled_library = get_libpath_in_current_directory(Slic3r::PJarczakLinuxBridge::bridge_network_module_stem());
+        if (!bundled_library.empty())
+            return bundled_library;
+#endif
+        return bridge_path;
+    }
 
 #if defined(_MSC_VER) || defined(_WIN32)
     return (plugin_folder / (std::string(BAMBU_NETWORK_LIBRARY) + "_" + version + ".dll")).string();

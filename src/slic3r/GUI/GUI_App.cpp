@@ -3163,6 +3163,23 @@ bool GUI_App::on_init_network(bool try_backup)
 
     std::string config_version = app_config->get_network_plugin_version();
 
+    if (Slic3r::PJarczakLinuxBridge::enabled()) {
+        const std::string bridge_version = Slic3r::PJarczakLinuxBridge::forced_client_version();
+        if (!should_load_networking_plugin && Slic3r::NetworkAgent::versioned_library_exists(bridge_version)) {
+            BOOST_LOG_TRIVIAL(info) << __FUNCTION__ << ": enabling bundled Bambu bridge network plugin";
+            app_config->set_bool("installed_networking", true);
+            app_config->set(SETTING_NETWORK_PLUGIN_VERSION, bridge_version);
+            app_config->save();
+            should_load_networking_plugin = true;
+            config_version = bridge_version;
+        } else if (should_load_networking_plugin && config_version.empty()) {
+            BOOST_LOG_TRIVIAL(info) << __FUNCTION__ << ": setting bundled Bambu bridge network plugin version";
+            app_config->set(SETTING_NETWORK_PLUGIN_VERSION, bridge_version);
+            app_config->save();
+            config_version = bridge_version;
+        }
+    }
+
     if (should_load_networking_plugin) {
         if (config_version.empty()) {
             BOOST_LOG_TRIVIAL(info) << __FUNCTION__ << ": no version configured, need to download";
