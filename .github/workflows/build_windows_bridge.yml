@@ -54,6 +54,7 @@ jobs:
         with:
           path: ${{ github.workspace }}/deps/build/OrcaSlicer_dep
           key: linux-clang-cache-orcaslicer_deps-build-${{ hashFiles('deps/**') }}
+          save-always: true
 
       - name: Apt-Install Dependencies
         uses: ./.github/actions/apt-install-deps
@@ -136,6 +137,7 @@ jobs:
         with:
           path: ${{ github.workspace }}/deps/build/OrcaSlicer_dep
           key: windows-cache-orcaslicer_deps-build-${{ hashFiles('deps/**') }}
+          save-always: true
 
       - name: Get the version and date on Windows
         shell: pwsh

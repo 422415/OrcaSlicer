@@ -2942,6 +2942,8 @@ bool GUI_App::on_init_inner()
     mainframe->topbar()->SaveNormalRect();
 #endif
     if (scrn) { scrn->SetText(_L("Showing main window") + dots); wxYield(); }
+    if (plater_ != nullptr && plater_->canvas3D() != nullptr && init_params->input_files.empty())
+        plater_->canvas3D()->enable_render(false);
     mainframe->Show(true);
     // Close the splash now that the main UI is visible.
     if (scrn) { scrn->Destroy(); scrn = nullptr; }
