@@ -1,22 +1,22 @@
 {
   "source_repo": "SoftFever/OrcaSlicer",
   "release_tag": "nightly-builds",
-  "release_updated_at": "2026-05-19T16:07:39Z",
+  "release_updated_at": "2026-05-19T20:03:12Z",
   "assets": [
     {
       "name": "OrcaSlicer-Linux-flatpak_nightly_aarch64.flatpak",
-      "size": 121258912,
-      "updated_at": "2026-05-19T13:48:04Z"
+      "size": 121292552,
+      "updated_at": "2026-05-19T19:02:52Z"
     },
     {
       "name": "OrcaSlicer-Linux-flatpak_nightly_x86_64.flatpak",
-      "size": 126108992,
-      "updated_at": "2026-05-19T14:20:44Z"
+      "size": 126127280,
+      "updated_at": "2026-05-19T19:44:21Z"
     },
     {
       "name": "OrcaSlicer_Linux_AppImage_Ubuntu2404_nightly.AppImage",
       "size": 132151800,
-      "updated_at": "2026-05-19T16:07:34Z"
+      "updated_at": "2026-05-19T18:39:52Z"
     },
     {
       "name": "OrcaSlicer_Mac_universal_nightly.dmg",
@@ -25,18 +25,18 @@
     },
     {
       "name": "OrcaSlicer_Windows_Installer_nightly.exe",
-      "size": 131774164,
-      "updated_at": "2026-05-19T13:54:35Z"
+      "size": 131752929,
+      "updated_at": "2026-05-19T20:03:10Z"
     },
     {
       "name": "OrcaSlicer_Windows_nightly_portable.zip",
-      "size": 161537868,
-      "updated_at": "2026-05-19T13:54:28Z"
+      "size": 161541586,
+      "updated_at": "2026-05-19T20:03:03Z"
     },
     {
       "name": "OrcaSlicer_profile_validator_Linux_Ubuntu2404_nightly",
       "size": 11133120,
-      "updated_at": "2026-05-19T16:07:38Z"
+      "updated_at": "2026-05-19T18:40:02Z"
     },
     {
       "name": "OrcaSlicer_profile_validator_Mac_universal_nightly.dmg",
@@ -46,13 +46,13 @@
     {
       "name": "OrcaSlicer_profile_validator_Windows_nightly.exe",
       "size": 3353088,
-      "updated_at": "2026-05-19T13:54:38Z"
+      "updated_at": "2026-05-19T20:03:12Z"
     },
     {
       "name": "orca_custom_preset_tests.zip",
       "size": 6782013,
-      "updated_at": "2026-05-19T16:07:39Z"
+      "updated_at": "2026-05-19T18:40:04Z"
     }
   ],
-  "fingerprint": "091f2e7c3edb41a58821973576ae5982660e11c935fea03e455444feb5d156fa"
+  "fingerprint": "b9048bcae4a6ef438780ebca206b12319857d13519d71351056786ef468c43d5"
 }
