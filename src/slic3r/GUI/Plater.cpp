@@ -10946,14 +10946,14 @@ void Plater::priv::set_current_canvas_as_dirty()
 
 GLCanvas3D* Plater::priv::get_current_canvas3D(bool exclude_preview)
 {
-    if (current_panel == view3D)
+    if (current_panel == view3D && view3D != nullptr)
         return view3D->get_canvas3d();
-    else if (!exclude_preview && (current_panel == preview))
+    else if (!exclude_preview && (current_panel == preview) && preview != nullptr)
         return preview->get_canvas3d();
-    else if (current_panel == assemble_view)
+    else if (current_panel == assemble_view && assemble_view != nullptr)
         return assemble_view->get_canvas3d();
     else //BBS default set to view3D
-        return view3D->get_canvas3d();
+        return view3D != nullptr ? view3D->get_canvas3d() : nullptr;
 
     //return (current_panel == view3D) ? view3D->get_canvas3d() : ((current_panel == preview) ? preview->get_canvas3d() : nullptr);
 }
@@ -16923,7 +16923,7 @@ const GLCanvas3D* Plater::canvas3D() const
 
 GLCanvas3D* Plater::get_view3D_canvas3D()
 {
-    return p ? p->view3D->get_canvas3d() : nullptr;
+    return p && p->view3D ? p->view3D->get_canvas3d() : nullptr;
 }
 
 GLCanvas3D* Plater::get_preview_canvas3D()
