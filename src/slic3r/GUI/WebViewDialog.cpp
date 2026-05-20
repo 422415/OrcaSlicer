@@ -568,8 +568,12 @@ int WebViewPanel::get_model_mall_detail_url(std::string *url, std::string id)
 
 void WebViewPanel::update_mode()
 {
-    GetSizer()->Show(size_t(0), wxGetApp().app_config->get("internal_developer_mode") == "true");
-    GetSizer()->Layout();
+    wxSizer *sizer = GetSizer();
+    if (sizer == nullptr)
+        return;
+
+    sizer->Show(size_t(0), wxGetApp().app_config->get("internal_developer_mode") == "true");
+    sizer->Layout();
 }
 
 /**

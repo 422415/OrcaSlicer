@@ -2969,9 +2969,13 @@ bool GUI_App::on_init_inner()
     //plater_->trigger_restore_project(1);
 //#endif
 
-    obj_list()->set_min_height();
+    BOOST_LOG_TRIVIAL(info) << "post-show startup: update object list minimum height";
+    if (obj_list() != nullptr)
+        obj_list()->set_min_height();
 
+    BOOST_LOG_TRIVIAL(info) << "post-show startup: update mode";
     update_mode(); // update view mode after fix of the object_list size
+    BOOST_LOG_TRIVIAL(info) << "post-show startup: mode updated";
 
 #ifdef __APPLE__
    other_instance_message_handler()->bring_instance_forward();
@@ -7343,35 +7347,45 @@ void GUI_App::save_mode(const /*ConfigOptionMode*/int mode)
 // Update view mode according to selected menu
 void GUI_App::update_mode()
 {
+    if (mainframe == nullptr)
+        return;
+
     sidebar().update_mode();
 
     //BBS: GUI refactor
     if (mainframe->m_param_panel)
         mainframe->m_param_panel->update_mode();
-    if (mainframe->m_param_dialog)
+    if (mainframe->m_param_dialog && mainframe->m_param_dialog->panel())
         mainframe->m_param_dialog->panel()->update_mode();
     if (mainframe->m_printer_view)
         mainframe->m_printer_view->update_mode();
-    mainframe->m_webview->update_mode();
+    if (mainframe->m_webview)
+        mainframe->m_webview->update_mode();
 
 #ifdef _MSW_DARK_MODE
-    if (!wxGetApp().tabs_as_menu())
-        dynamic_cast<Notebook*>(mainframe->m_tabpanel)->UpdateMode();
+    if (!wxGetApp().tabs_as_menu()) {
+        if (auto *notebook = dynamic_cast<Notebook*>(mainframe->m_tabpanel); notebook != nullptr)
+            notebook->UpdateMode();
+    }
 #endif
 
     for (auto tab : tabs_list)
-        tab->update_mode();
+        if (tab != nullptr)
+            tab->update_mode();
     for (auto tab : model_tabs_list)
-        tab->update_mode();
+        if (tab != nullptr)
+            tab->update_mode();
 
     //BBS plater()->update_menus();
 
-    plater()->canvas3D()->update_gizmos_on_off_state();
+    if (plater_ != nullptr && plater_->canvas3D() != nullptr)
+        plater_->canvas3D()->update_gizmos_on_off_state();
 }
 
 void GUI_App::update_internal_development() {
-    mainframe->m_webview->update_mode();
-    if (mainframe->m_printer_view)
+    if (mainframe != nullptr && mainframe->m_webview)
+        mainframe->m_webview->update_mode();
+    if (mainframe != nullptr && mainframe->m_printer_view)
         mainframe->m_printer_view->update_mode();
 }
 

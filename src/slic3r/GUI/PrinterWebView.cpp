@@ -207,7 +207,8 @@ void PrinterWebView::reload()
 
 void PrinterWebView::update_mode()
 {
-    m_browser->EnableAccessToDevTools(wxGetApp().app_config->get_bool("developer_mode"));
+    if (m_browser != nullptr)
+        m_browser->EnableAccessToDevTools(wxGetApp().app_config->get_bool("developer_mode"));
 }
 
 /**

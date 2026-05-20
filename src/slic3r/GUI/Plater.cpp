@@ -3968,8 +3968,10 @@ void Sidebar::update_mode()
     // BBS
     //obj_list()->get_sizer()->Show(m_mode > comSimple);
 
-    obj_list()->unselect_objects();
-    obj_list()->update_selections();
+    if (ObjectList *list = obj_list(); list != nullptr) {
+        list->unselect_objects();
+        list->update_selections();
+    }
 //    obj_list()->update_object_menu();
 
     Layout();
