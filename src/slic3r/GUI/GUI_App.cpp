@@ -2973,9 +2973,7 @@ bool GUI_App::on_init_inner()
     if (obj_list() != nullptr)
         obj_list()->set_min_height();
 
-    BOOST_LOG_TRIVIAL(info) << "post-show startup: update mode";
-    update_mode(); // update view mode after fix of the object_list size
-    BOOST_LOG_TRIVIAL(info) << "post-show startup: mode updated";
+    BOOST_LOG_TRIVIAL(info) << "post-show startup: defer mode update until app init finishes";
 
 #ifdef __APPLE__
    other_instance_message_handler()->bring_instance_forward();
@@ -3036,6 +3034,12 @@ bool GUI_App::on_init_inner()
     });
 
     m_initialized = true;
+
+    CallAfter([this]() {
+        BOOST_LOG_TRIVIAL(info) << "post-show startup: deferred update mode";
+        update_mode(); // update view mode after fix of the object_list size
+        BOOST_LOG_TRIVIAL(info) << "post-show startup: deferred mode updated";
+    });
 
     flush_logs();
 
@@ -7356,6 +7360,11 @@ void GUI_App::update_mode()
 {
     if (mainframe == nullptr)
         return;
+
+    if (!initialized()) {
+        BOOST_LOG_TRIVIAL(info) << "update_mode: skipped before app initialization";
+        return;
+    }
 
     BOOST_LOG_TRIVIAL(info) << "update_mode: sidebar";
     sidebar().update_mode();
