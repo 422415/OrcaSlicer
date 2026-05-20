@@ -3026,6 +3026,12 @@ bool GUI_App::on_init_inner()
             this->post_init();
 
             update_publish_status();
+
+            CallAfter([this]() {
+                BOOST_LOG_TRIVIAL(info) << "post-init startup: update mode";
+                update_mode(); // update view mode after post_init has finished creating parameter pages
+                BOOST_LOG_TRIVIAL(info) << "post-init startup: mode updated";
+            });
         }
 
         if (m_post_initialized && app_config->dirty())
@@ -3034,12 +3040,6 @@ bool GUI_App::on_init_inner()
     });
 
     m_initialized = true;
-
-    CallAfter([this]() {
-        BOOST_LOG_TRIVIAL(info) << "post-show startup: deferred update mode";
-        update_mode(); // update view mode after fix of the object_list size
-        BOOST_LOG_TRIVIAL(info) << "post-show startup: deferred mode updated";
-    });
 
     flush_logs();
 
