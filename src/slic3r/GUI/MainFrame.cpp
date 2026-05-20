@@ -669,7 +669,7 @@ DPIFrame(NULL, wxID_ANY, "", wxDefaultPosition, wxDefaultSize, BORDERLESS_FRAME_
         }
         Slic3r::set_backup_callback([this](int action) {
             if (action == 0) {
-                wxPostEvent(this, wxCommandEvent(EVT_BACKUP_POST));
+                wxQueueEvent(this, new wxCommandEvent(EVT_BACKUP_POST));
             }
             else if (action == 1) {
                 if (!m_plater->up_to_date(false, true)) {
