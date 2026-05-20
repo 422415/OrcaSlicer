@@ -3945,7 +3945,7 @@ static std::vector<Search::InputInfo> get_search_inputs(ConfigOptionMode mode)
     auto& tabs_list = wxGetApp().tabs_list;
     auto print_tech = wxGetApp().preset_bundle->printers.get_selected_preset().printer_technology();
     for (auto tab : tabs_list)
-        if (tab->supports_printer_technology(print_tech))
+        if (tab != nullptr && tab->supports_printer_technology(print_tech))
             ret.emplace_back(Search::InputInfo {tab->get_config(), tab->type(), mode});
 
     return ret;
