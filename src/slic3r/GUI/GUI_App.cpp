@@ -782,25 +782,21 @@ void GUI_App::post_init()
     }
     if (!switch_to_3d) {
         BOOST_LOG_TRIVIAL(info) << __FUNCTION__ << ", begin load_gl_resources";
-#ifndef __linux__
-        bool mainframe_frozen = false;
-        if (mainframe != nullptr) {
-            mainframe->Freeze();
-            mainframe_frozen = true;
-        }
-#endif
-        GLCanvas3D *canvas3D = plater_ != nullptr ? plater_->canvas3D() : nullptr;
-        wxGLCanvas *wx_canvas = canvas3D != nullptr ? canvas3D->get_wxglcanvas() : nullptr;
-        if (canvas3D == nullptr || wx_canvas == nullptr) {
-            BOOST_LOG_TRIVIAL(warning) << __FUNCTION__ << ": GL canvas not ready, postpone init";
-#ifndef __linux__
-            if (mainframe_frozen)
-                mainframe->Thaw();
-#endif
+        if (mainframe == nullptr || plater_ == nullptr) {
+            BOOST_LOG_TRIVIAL(warning) << __FUNCTION__ << ": main frame or plater not ready, postpone init";
             m_post_initialized = false;
             return;
         }
 
+        GLCanvas3D *canvas3D = plater_ != nullptr ? plater_->canvas3D() : nullptr;
+        wxGLCanvas *wx_canvas = canvas3D != nullptr ? canvas3D->get_wxglcanvas() : nullptr;
+        if (canvas3D == nullptr || wx_canvas == nullptr) {
+            BOOST_LOG_TRIVIAL(warning) << __FUNCTION__ << ": GL canvas not ready, postpone init";
+            m_post_initialized = false;
+            return;
+        }
+
+        BOOST_LOG_TRIVIAL(info) << __FUNCTION__ << ", switch to 3D canvas for GL init";
         canvas3D->enable_render(false);
         mainframe->select_tab(size_t(MainFrame::tp3DEditor));
         plater_->select_view_3D("3D");
@@ -810,10 +806,6 @@ void GUI_App::post_init()
             BOOST_LOG_TRIVIAL(warning) << __FUNCTION__ << ": glcontext not ready, postpone init";
             canvas3D->enable_render(true);
             canvas3D->set_as_dirty();
-#ifndef __linux__
-            if (mainframe_frozen)
-                mainframe->Thaw();
-#endif
             // Wayland/EGL may not have committed the GL surface yet; ask the
             // idle loop to retry post_init when the canvas is actually mapped.
             // Without this, GL function pointers stay null and the first
@@ -845,10 +837,6 @@ void GUI_App::post_init()
             mainframe->select_tab(size_t(0));
         if (app_config->get("default_page") == "1")
             mainframe->select_tab(size_t(1));
-#ifndef __linux__
-        if (mainframe_frozen)
-            mainframe->Thaw();
-#endif
         BOOST_LOG_TRIVIAL(info) << __FUNCTION__ << ", end load_gl_resources";
     }
 

@@ -16912,13 +16912,13 @@ bool Plater::is_single_full_object_selection() const
 GLCanvas3D* Plater::canvas3D()
 {
     // BBS modify view3D->get_canvas3d() to current canvas
-    return p->get_current_canvas3D();
+    return p ? p->get_current_canvas3D() : nullptr;
 }
 
 const GLCanvas3D* Plater::canvas3D() const
 {
     // BBS modify view3D->get_canvas3d() to current canvas
-    return p->get_current_canvas3D();
+    return p ? p->get_current_canvas3D() : nullptr;
 }
 
 GLCanvas3D* Plater::get_view3D_canvas3D()
@@ -16928,19 +16928,19 @@ GLCanvas3D* Plater::get_view3D_canvas3D()
 
 GLCanvas3D* Plater::get_preview_canvas3D()
 {
-    return p->preview->get_canvas3d();
+    return p && p->preview ? p->preview->get_canvas3d() : nullptr;
 }
 
 GLCanvas3D* Plater::get_assmeble_canvas3D()
 {
-    if (p->assemble_view)
+    if (p && p->assemble_view)
         return p->assemble_view->get_canvas3d();
     return nullptr;
 }
 
 GLCanvas3D* Plater::get_current_canvas3D(bool exclude_preview)
 {
-    return p->get_current_canvas3D(exclude_preview);
+    return p ? p->get_current_canvas3D(exclude_preview) : nullptr;
 }
 
 void Plater::arrange()
