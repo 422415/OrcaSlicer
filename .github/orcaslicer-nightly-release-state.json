@@ -1,7 +1,7 @@
 {
   "source_repo": "SoftFever/OrcaSlicer",
   "release_tag": "nightly-builds",
-  "release_updated_at": "2026-05-20T06:08:54Z",
+  "release_updated_at": "2026-05-20T12:16:42Z",
   "assets": [
     {
       "name": "OrcaSlicer-Linux-flatpak_nightly_aarch64.flatpak",
@@ -15,8 +15,8 @@
     },
     {
       "name": "OrcaSlicer_Linux_AppImage_Ubuntu2404_nightly.AppImage",
-      "size": 132155896,
-      "updated_at": "2026-05-20T05:26:54Z"
+      "size": 132164088,
+      "updated_at": "2026-05-20T12:16:36Z"
     },
     {
       "name": "OrcaSlicer_Mac_universal_nightly.dmg",
@@ -36,7 +36,7 @@
     {
       "name": "OrcaSlicer_profile_validator_Linux_Ubuntu2404_nightly",
       "size": 11133184,
-      "updated_at": "2026-05-20T05:26:57Z"
+      "updated_at": "2026-05-20T12:16:40Z"
     },
     {
       "name": "OrcaSlicer_profile_validator_Mac_universal_nightly.dmg",
@@ -51,8 +51,8 @@
     {
       "name": "orca_custom_preset_tests.zip",
       "size": 6782013,
-      "updated_at": "2026-05-20T05:26:59Z"
+      "updated_at": "2026-05-20T12:16:42Z"
     }
   ],
-  "fingerprint": "325813da774f57e2083ed208321e37daa6b6e4995f39f599e696924f2e0c7dd5"
+  "fingerprint": "9a1577c6a87f0e624c65f1123cf34fe7ffdab578873d7a47f95b1bffb48ccefc"
 }
