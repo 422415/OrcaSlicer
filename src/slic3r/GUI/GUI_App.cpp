@@ -7350,13 +7350,16 @@ void GUI_App::update_mode()
     if (mainframe == nullptr)
         return;
 
+    BOOST_LOG_TRIVIAL(info) << "update_mode: sidebar";
     sidebar().update_mode();
 
     //BBS: GUI refactor
+    BOOST_LOG_TRIVIAL(info) << "update_mode: params";
     if (mainframe->m_param_panel)
         mainframe->m_param_panel->update_mode();
     if (mainframe->m_param_dialog && mainframe->m_param_dialog->panel())
         mainframe->m_param_dialog->panel()->update_mode();
+    BOOST_LOG_TRIVIAL(info) << "update_mode: webviews";
     if (mainframe->m_printer_view)
         mainframe->m_printer_view->update_mode();
     if (mainframe->m_webview)
@@ -7369,6 +7372,7 @@ void GUI_App::update_mode()
     }
 #endif
 
+    BOOST_LOG_TRIVIAL(info) << "update_mode: tabs";
     for (auto tab : tabs_list)
         if (tab != nullptr)
             tab->update_mode();
@@ -7378,8 +7382,10 @@ void GUI_App::update_mode()
 
     //BBS plater()->update_menus();
 
-    if (plater_ != nullptr && plater_->canvas3D() != nullptr)
+    BOOST_LOG_TRIVIAL(info) << "update_mode: canvas gizmos";
+    if (m_post_initialized && plater_ != nullptr && plater_->canvas3D() != nullptr && plater_->canvas3D()->is_initialized())
         plater_->canvas3D()->update_gizmos_on_off_state();
+    BOOST_LOG_TRIVIAL(info) << "update_mode: done";
 }
 
 void GUI_App::update_internal_development() {
