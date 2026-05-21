@@ -85,6 +85,27 @@ jobs:
             throw "build_release_vs.bat slicer failed with exit code $LASTEXITCODE"
           }
 
+      - name: Collect DLL debug artifacts
+        if: always()
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $debugDir = Join-Path $env:RUNNER_TEMP 'OrcaSlicerDebugArtifacts'
+          Remove-Item -Recurse -Force $debugDir -ErrorAction SilentlyContinue
+          New-Item -ItemType Directory -Force -Path $debugDir | Out-Null
+
+          $appDir = Join-Path $env:GITHUB_WORKSPACE 'build\OrcaSlicer'
+          foreach ($name in @('OrcaSlicer.dll', 'orca-slicer.exe')) {
+            $path = Join-Path $appDir $name
+            if (Test-Path $path) {
+              Copy-Item -LiteralPath $path -Destination $debugDir -Force
+            }
+          }
+
+          Get-ChildItem -Path (Join-Path $env:GITHUB_WORKSPACE 'build') -Recurse -File -Include '*.pdb', '*.map' -ErrorAction SilentlyContinue |
+            Where-Object { $_.Name -match 'OrcaSlicer|orca-slicer' } |
+            Copy-Item -Destination $debugDir -Force
+
       - name: Launch portable smoke test
         shell: pwsh
         run: |
@@ -99,6 +120,8 @@ jobs:
           Remove-Item -Recurse -Force $smokeDir, $dataDir -ErrorAction SilentlyContinue
           Copy-Item -Recurse -Force $sourceDir $smokeDir
           New-Item -ItemType Directory -Force -Path $dataDir | Out-Null
+          Get-ChildItem -Path (Join-Path $env:RUNNER_TEMP 'OrcaSlicerDebugArtifacts') -File -Filter '*.pdb' -ErrorAction SilentlyContinue |
+            Copy-Item -Destination $smokeDir -Force
 
           $exe = Join-Path $smokeDir 'orca-slicer.exe'
           if (!(Test-Path $exe)) {
@@ -193,6 +216,14 @@ jobs:
         with:
           name: windows-portable-smoke-logs-${{ github.sha }}
           path: ${{ runner.temp }}/OrcaSlicerSmokeData/log
+          if-no-files-found: ignore
+
+      - name: Upload DLL debug artifacts
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: windows-portable-dll-debug-${{ github.sha }}
+          path: ${{ runner.temp }}/OrcaSlicerDebugArtifacts
           if-no-files-found: ignore
 
       - name: Pack portable zip
