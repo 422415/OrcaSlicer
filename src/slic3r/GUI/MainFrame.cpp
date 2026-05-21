@@ -3922,8 +3922,13 @@ void MainFrame::select_tab(size_t tab/* = size_t(-1)*/)
                 m_plater->get_current_canvas3D()->render();
         }*/
 #endif
-        if (tab == MainFrame::tp3DEditor && m_layout == ESettingsLayout::Old)
-            m_plater->canvas3D()->render();
+        if (tab == MainFrame::tp3DEditor && m_layout == ESettingsLayout::Old) {
+            auto *canvas = m_plater != nullptr ? m_plater->canvas3D() : nullptr;
+            if (canvas != nullptr)
+                canvas->render();
+            else
+                BOOST_LOG_TRIVIAL(warning) << __FUNCTION__ << ": skip 3D tab render before canvas is ready";
+        }
         else if (was_hidden) {
             Tab* cur_tab = dynamic_cast<Tab*>(m_tabpanel->GetPage(new_selection));
             if (cur_tab)

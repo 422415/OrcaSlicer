@@ -14487,7 +14487,11 @@ void Plater::update_ui_from_settings() { p->update_ui_from_settings(); }
 void Plater::select_view(const std::string& direction) { p->select_view(direction); }
 
 //BBS: add no_slice logic
-void Plater::select_view_3D(const std::string& name, bool no_slice) { p->select_view_3D(name, no_slice); }
+void Plater::select_view_3D(const std::string& name, bool no_slice)
+{
+    if (p != nullptr)
+        p->select_view_3D(name, no_slice);
+}
 
 void Plater::reload_paint_after_background_process_apply() {
     p->preview->set_reload_paint_after_background_process_apply(true);

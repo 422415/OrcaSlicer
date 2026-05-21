@@ -798,8 +798,11 @@ void GUI_App::post_init()
 
         BOOST_LOG_TRIVIAL(info) << __FUNCTION__ << ", switch to 3D canvas for GL init";
         canvas3D->enable_render(false);
+        BOOST_LOG_TRIVIAL(info) << __FUNCTION__ << ", select 3D tab for GL init";
         mainframe->select_tab(size_t(MainFrame::tp3DEditor));
+        BOOST_LOG_TRIVIAL(info) << __FUNCTION__ << ", select 3D view for GL init";
         plater_->select_view_3D("3D");
+        BOOST_LOG_TRIVIAL(info) << __FUNCTION__ << ", check GL context for post init";
         //BBS init the opengl resource here
         if (!wx_canvas->IsShownOnScreen() ||
             !canvas3D->make_current_for_postinit()) {
