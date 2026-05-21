@@ -1,0 +1,104 @@
+name: Build Windows portable
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - nightly-features
+    paths:
+      - 'deps/**'
+      - 'deps_src/**'
+      - 'src/**'
+      - '**/CMakeLists.txt'
+      - 'version.inc'
+      - 'localization/**'
+      - 'resources/**'
+      - 'build_release_vs.bat'
+      - 'build_release_vs2022.bat'
+      - '.github/workflows/build_windows_portable.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  windows_portable:
+    name: Windows x64 portable
+    runs-on: windows-latest
+    env:
+      ORCA_UPDATER_SIG_KEY: ${{ secrets.ORCA_UPDATER_SIG_KEY }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          lfs: 'false'
+
+      - name: Restore Windows deps cache
+        id: deps-cache
+        uses: actions/cache@v5
+        with:
+          path: ${{ github.workspace }}/deps/build/OrcaSlicer_dep
+          key: windows-cache-orcaslicer_deps-build-${{ hashFiles('deps/**') }}
+
+      - name: Run lukka/get-cmake@latest
+        uses: lukka/get-cmake@latest
+        with:
+          cmakeVersion: "~4.3.0"
+          useLocalCache: true
+          useCloudCache: true
+
+      - name: Setup MSVC
+        uses: microsoft/setup-msbuild@v3
+
+      - name: Build Windows deps
+        if: steps.deps-cache.outputs.cache-hit != 'true'
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          choco install strawberryperl
+          .\build_release_vs.bat deps
+          if ($LASTEXITCODE -ne 0) {
+            throw "build_release_vs.bat deps failed with exit code $LASTEXITCODE"
+          }
+
+      - name: Get version
+        shell: pwsh
+        run: |
+          $versionContent = Get-Content version.inc -Raw
+          if ($versionContent -match 'set\(SoftFever_VERSION "(.*?)"\)') {
+            $ver = "V$($matches[1])"
+          } else {
+            $ver = "nightly"
+          }
+          "ver=$ver" | Out-File -Append -FilePath $env:GITHUB_ENV -Encoding utf8
+
+      - name: Build slicer
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          .\build_release_vs.bat slicer
+          if ($LASTEXITCODE -ne 0) {
+            throw "build_release_vs.bat slicer failed with exit code $LASTEXITCODE"
+          }
+
+      - name: Pack portable zip
+        working-directory: ${{ github.workspace }}/build
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $zipName = "OrcaSlicer_Windows_${env:ver}_portable.zip"
+          & "C:/Program Files/7-Zip/7z.exe" a -tzip $zipName "${env:GITHUB_WORKSPACE}/build/OrcaSlicer"
+          if ($LASTEXITCODE -ne 0) {
+            throw "7-Zip failed with exit code $LASTEXITCODE"
+          }
+          "portable_zip=$zipName" | Out-File -Append -FilePath $env:GITHUB_ENV -Encoding utf8
+
+      - name: Upload portable zip
+        uses: actions/upload-artifact@v7
+        with:
+          name: OrcaSlicer_Windows_${{ env.ver }}_portable
+          path: ${{ github.workspace }}/build/${{ env.portable_zip }}
