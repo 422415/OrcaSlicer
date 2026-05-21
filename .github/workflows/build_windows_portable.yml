@@ -85,6 +85,116 @@ jobs:
             throw "build_release_vs.bat slicer failed with exit code $LASTEXITCODE"
           }
 
+      - name: Launch portable smoke test
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $sourceDir = Join-Path $env:GITHUB_WORKSPACE 'build\OrcaSlicer'
+          if (!(Test-Path $sourceDir)) {
+            throw "Missing built app directory: $sourceDir"
+          }
+
+          $smokeDir = Join-Path $env:RUNNER_TEMP 'OrcaSlicerSmokeApp'
+          $dataDir = Join-Path $env:RUNNER_TEMP 'OrcaSlicerSmokeData'
+          Remove-Item -Recurse -Force $smokeDir, $dataDir -ErrorAction SilentlyContinue
+          Copy-Item -Recurse -Force $sourceDir $smokeDir
+          New-Item -ItemType Directory -Force -Path $dataDir | Out-Null
+
+          $exe = Join-Path $smokeDir 'orca-slicer.exe'
+          if (!(Test-Path $exe)) {
+            throw "Missing executable: $exe"
+          }
+
+          function Get-SmokeCrashLogs {
+            $logDir = Join-Path $dataDir 'log'
+            if (Test-Path $logDir) {
+              return @(Get-ChildItem -Path $logDir -Filter 'crash_*.log' -ErrorAction SilentlyContinue)
+            }
+            return @()
+          }
+
+          function Assert-SmokeHealthy([string]$phase) {
+            $crashLogs = @(Get-SmokeCrashLogs)
+            if ($process.HasExited) {
+              if ($crashLogs.Count -gt 0) {
+                Write-Host "Crash log:"
+                Get-Content -Path $crashLogs[0].FullName | Select-Object -First 120
+              }
+              throw "OrcaSlicer exited during $phase with code $($process.ExitCode)"
+            }
+            if ($crashLogs.Count -gt 0) {
+              Write-Host "Crash log:"
+              Get-Content -Path $crashLogs[0].FullName | Select-Object -First 120
+              throw "OrcaSlicer wrote a crash log during $phase"
+            }
+          }
+
+          function Select-SmokePrepareTab {
+            try {
+              Add-Type -AssemblyName UIAutomationClient
+              $root = [System.Windows.Automation.AutomationElement]::RootElement
+              $windowCondition = New-Object System.Windows.Automation.PropertyCondition(
+                [System.Windows.Automation.AutomationElement]::ProcessIdProperty,
+                $process.Id)
+              $window = $root.FindFirst([System.Windows.Automation.TreeScope]::Children, $windowCondition)
+              if ($null -eq $window) {
+                Write-Host "Smoke UI: OrcaSlicer window was not exposed to UI Automation."
+                return
+              }
+
+              $prepareCondition = New-Object System.Windows.Automation.PropertyCondition(
+                [System.Windows.Automation.AutomationElement]::NameProperty,
+                'Prepare')
+              $prepare = $window.FindFirst([System.Windows.Automation.TreeScope]::Descendants, $prepareCondition)
+              if ($null -eq $prepare) {
+                Write-Host "Smoke UI: Prepare tab was not exposed to UI Automation."
+                return
+              }
+
+              Write-Host "Smoke UI: selecting Prepare tab."
+              $pattern = $null
+              if ($prepare.TryGetCurrentPattern([System.Windows.Automation.SelectionItemPattern]::Pattern, [ref]$pattern)) {
+                $pattern.Select()
+                return
+              }
+
+              $pattern = $null
+              if ($prepare.TryGetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern, [ref]$pattern)) {
+                $pattern.Invoke()
+                return
+              }
+
+              $prepare.SetFocus()
+            }
+            catch {
+              Write-Warning "Prepare tab UI smoke skipped: $($_.Exception.Message)"
+            }
+          }
+
+          $process = Start-Process -FilePath $exe -WorkingDirectory $smokeDir -ArgumentList @('--datadir', $dataDir) -PassThru
+          try {
+            Start-Sleep -Seconds 45
+            Assert-SmokeHealthy 'startup smoke test'
+            Select-SmokePrepareTab
+            Start-Sleep -Seconds 15
+            Assert-SmokeHealthy 'Prepare tab smoke test'
+          }
+          finally {
+            if ($process -and !$process.HasExited) {
+              Stop-Process -Id $process.Id -Force
+            }
+          }
+
+          Write-Host "OrcaSlicer stayed open through startup and Prepare tab smoke windows."
+
+      - name: Upload smoke logs
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: windows-portable-smoke-logs-${{ github.sha }}
+          path: ${{ runner.temp }}/OrcaSlicerSmokeData/log
+          if-no-files-found: ignore
+
       - name: Pack portable zip
         working-directory: ${{ github.workspace }}/build
         shell: pwsh
