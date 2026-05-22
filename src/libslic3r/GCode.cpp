@@ -6489,7 +6489,7 @@ std::string GCode::_extrude(const ExtrusionPath &path, std::string description, 
     auto apply_visible_path_end_taper = [this, &path](double segment_start, double segment_end, double path_length, double extrusion_length) {
         if (extrusion_length <= EPSILON ||
             path.is_force_no_extrusion() ||
-            path.role() != erExternalPerimeter) {
+            !is_perimeter(path.role())) {
             return extrusion_length;
         }
 
@@ -6539,7 +6539,7 @@ std::string GCode::_extrude(const ExtrusionPath &path, std::string description, 
 
         if (extrusion_length > EPSILON &&
             !path.is_force_no_extrusion() &&
-            path.role() == erExternalPerimeter) {
+            is_perimeter(path.role())) {
             const double taper_amount = m_config.visible_path_end_taper_amount.value;
             const double taper_distance = std::min(m_config.visible_path_end_taper_distance.value, path_total_length);
             if (taper_amount > EPSILON && taper_distance > EPSILON) {
