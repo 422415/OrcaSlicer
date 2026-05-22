@@ -5412,7 +5412,7 @@ void PrintConfigDef::init_fff_params()
     def = this->add("visible_path_end_taper_amount", coFloat);
     def->label = L("Visible path end taper amount");
     def->category = L("Quality");
-    def->tooltip = L("Subtracts a small amount of extrusion, in filament millimeters, over the end of visible extrusion paths to reduce endpoint dots. This applies to external walls and top surfaces. Set to 0 to disable.");
+    def->tooltip = L("Reduces extrusion over the end of external wall paths to soften seam endpoint dots. The amount is measured as equivalent path length, so 1 mm removes about one millimeter worth of normal extrusion over the taper distance. Set to 0 to disable.");
     def->sidetext = L("mm");
     def->min = 0;
     def->max = 1;
@@ -5422,7 +5422,7 @@ void PrintConfigDef::init_fff_params()
     def = this->add("visible_path_end_taper_distance", coFloat);
     def->label = L("Visible path end taper distance");
     def->category = L("Quality");
-    def->tooltip = L("Distance over which the visible path end taper amount is blended out before the end of an external wall or top surface path.");
+    def->tooltip = L("Distance over which the visible path end taper amount is blended out before the end of an external wall path.");
     def->sidetext = L("mm");
     def->min = 0;
     def->max = 50;

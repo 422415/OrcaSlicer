@@ -6489,12 +6489,17 @@ std::string GCode::_extrude(const ExtrusionPath &path, std::string description, 
     auto apply_visible_path_end_taper = [this, &path](double segment_start, double segment_end, double path_length, double extrusion_length) {
         if (extrusion_length <= EPSILON ||
             path.is_force_no_extrusion() ||
-            (path.role() != erExternalPerimeter && path.role() != erTopSolidInfill)) {
+            path.role() != erExternalPerimeter) {
             return extrusion_length;
         }
 
-        const double taper_amount = m_config.visible_path_end_taper_amount.value;
+        const double segment_length = segment_end - segment_start;
+        if (segment_length <= EPSILON) {
+            return extrusion_length;
+        }
+
         const double taper_distance = std::min(m_config.visible_path_end_taper_distance.value, path_length);
+        const double taper_amount = std::min(m_config.visible_path_end_taper_amount.value, taper_distance);
         if (taper_amount <= EPSILON || taper_distance <= EPSILON) {
             return extrusion_length;
         }
@@ -6505,7 +6510,8 @@ std::string GCode::_extrude(const ExtrusionPath &path, std::string description, 
             return extrusion_length;
         }
 
-        const double taper_e = taper_amount * overlap / taper_distance;
+        const double e_per_mm = extrusion_length / segment_length;
+        const double taper_e = e_per_mm * taper_amount * overlap / taper_distance;
         return std::max(0., extrusion_length - taper_e);
     };
 
@@ -6533,7 +6539,7 @@ std::string GCode::_extrude(const ExtrusionPath &path, std::string description, 
 
         if (extrusion_length > EPSILON &&
             !path.is_force_no_extrusion() &&
-            (path.role() == erExternalPerimeter || path.role() == erTopSolidInfill)) {
+            path.role() == erExternalPerimeter) {
             const double taper_amount = m_config.visible_path_end_taper_amount.value;
             const double taper_distance = std::min(m_config.visible_path_end_taper_distance.value, path_total_length);
             if (taper_amount > EPSILON && taper_distance > EPSILON) {
