@@ -5412,7 +5412,7 @@ void PrintConfigDef::init_fff_params()
     def = this->add("visible_path_end_taper_amount", coFloat);
     def->label = L("Visible path end taper amount");
     def->category = L("Quality");
-    def->tooltip = L("Reduces extrusion over the end of wall and top surface paths to soften endpoint dots. The amount is measured as equivalent path length, so 1 mm removes about one millimeter worth of normal extrusion over the taper distance. Set to 0 to disable.");
+    def->tooltip = L("Reduces extrusion over the end of wall and top surface paths to soften endpoint dots. The amount is measured as equivalent path length, so 1 mm removes about one millimeter worth of normal extrusion over the taper distance. Reduction is capped so path ends remain extruded. Set to 0 to disable.");
     def->sidetext = L("mm");
     def->min = 0;
     def->max = 1;

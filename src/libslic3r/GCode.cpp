@@ -6511,7 +6511,9 @@ std::string GCode::_extrude(const ExtrusionPath &path, std::string description, 
         }
 
         const double e_per_mm = extrusion_length / segment_length;
-        const double taper_e = e_per_mm * taper_amount * overlap / taper_distance;
+        // Soften endpoint dots without turning the end of a visible path into a travel gap.
+        const double max_taper_e = extrusion_length * 0.5;
+        const double taper_e = std::min(max_taper_e, e_per_mm * taper_amount * overlap / taper_distance);
         return std::max(0., extrusion_length - taper_e);
     };
 
