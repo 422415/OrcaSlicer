@@ -7093,9 +7093,10 @@ std::string GCode::_extrude(const ExtrusionPath &path, std::string description, 
                     } else if (sloped == nullptr) {
                         // Normal extrusion
                         for (const auto &[offset, e] : adjusted_extrusion_segments(segment_start, line_length, path_total_length, dE)) {
-                            Point3 dest = offset >= line_length - EPSILON ?
-                                line.b :
-                                line.a + ((line.b - line.a).cast<double>() * (offset / line_length)).cast<coord_t>();
+                            Point3 dest = line.b;
+                            if (offset < line_length - EPSILON) {
+                                dest = Point3(line.a + ((line.b - line.a).cast<double>() * (offset / line_length)).cast<coord_t>());
+                            }
                             gcode += m_writer.extrude_to_xy(
                                 this->point_to_gcode(dest.to_point()),
                                 e,
@@ -7144,9 +7145,10 @@ std::string GCode::_extrude(const ExtrusionPath &path, std::string description, 
                                 }
                             }
                             for (const auto &[offset, e] : adjusted_extrusion_segments(segment_start, line_length, path_total_length, dE)) {
-                                Point dest = offset >= line_length - EPSILON ?
-                                    line.b :
-                                    line.a + ((line.b - line.a).cast<double>() * (offset / line_length)).cast<coord_t>();
+                                Point dest = line.b;
+                                if (offset < line_length - EPSILON) {
+                                    dest = Point(line.a + ((line.b - line.a).cast<double>() * (offset / line_length)).cast<coord_t>());
+                                }
                                 gcode += m_writer.extrude_to_xy(
                                     this->point_to_gcode(dest),
                                     e,
