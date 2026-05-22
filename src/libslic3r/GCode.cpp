@@ -6509,6 +6509,67 @@ std::string GCode::_extrude(const ExtrusionPath &path, std::string description, 
         return std::max(0., extrusion_length - taper_e);
     };
 
+    auto adjusted_extrusion_segments = [this, &path, &apply_first_layer_start_prime, &apply_visible_path_end_taper](
+        double segment_start, double line_length, double path_total_length, double extrusion_length) {
+        std::vector<std::pair<double, double>> segments;
+        if (line_length <= EPSILON) {
+            return segments;
+        }
+
+        std::vector<double> offsets { 0., line_length };
+
+        if (extrusion_length > EPSILON && !path.is_force_no_extrusion() && this->on_first_layer() && !m_first_layer_start_prime_done) {
+            const double prime_amount = m_first_layer_start_prime_started ?
+                m_first_layer_start_prime_remaining :
+                m_config.first_layer_start_prime_amount.value;
+            const double prime_distance_remaining = m_first_layer_start_prime_started ?
+                m_first_layer_start_prime_distance_remaining :
+                m_config.first_layer_start_prime_distance.value;
+            if (prime_amount > EPSILON && prime_distance_remaining > EPSILON &&
+                prime_distance_remaining < line_length - EPSILON) {
+                offsets.emplace_back(prime_distance_remaining);
+            }
+        }
+
+        if (extrusion_length > EPSILON &&
+            !path.is_force_no_extrusion() &&
+            (path.role() == erExternalPerimeter || path.role() == erTopSolidInfill)) {
+            const double taper_amount = m_config.visible_path_end_taper_amount.value;
+            const double taper_distance = std::min(m_config.visible_path_end_taper_distance.value, path_total_length);
+            if (taper_amount > EPSILON && taper_distance > EPSILON) {
+                const double taper_offset = path_total_length - taper_distance - segment_start;
+                if (taper_offset > EPSILON && taper_offset < line_length - EPSILON) {
+                    offsets.emplace_back(taper_offset);
+                }
+            }
+        }
+
+        std::sort(offsets.begin(), offsets.end());
+        offsets.erase(std::unique(offsets.begin(), offsets.end(), [](double lhs, double rhs) {
+            return std::abs(lhs - rhs) <= EPSILON;
+        }), offsets.end());
+
+        double prev_offset = 0.;
+        for (double offset : offsets) {
+            if (offset <= prev_offset + EPSILON) {
+                continue;
+            }
+
+            const double sub_length = offset - prev_offset;
+            double sub_e = extrusion_length * sub_length / line_length;
+            sub_e = apply_first_layer_start_prime(sub_length, sub_e);
+            sub_e = apply_visible_path_end_taper(
+                segment_start + prev_offset,
+                segment_start + offset,
+                path_total_length,
+                sub_e);
+            segments.emplace_back(offset, sub_e);
+            prev_offset = offset;
+        }
+
+        return segments;
+    };
+
     // set speed
     if (speed == -1) {
         if (path.role() == erPerimeter) {
@@ -7031,12 +7092,15 @@ std::string GCode::_extrude(const ExtrusionPath &path, std::string description, 
 
                     } else if (sloped == nullptr) {
                         // Normal extrusion
-                        dE = apply_first_layer_start_prime(line_length, dE);
-                        dE = apply_visible_path_end_taper(segment_start, path_length, path_total_length, dE);
-                        gcode += m_writer.extrude_to_xy(
-                            this->point_to_gcode(line.b.to_point()),
-                            dE,
-                            GCodeWriter::full_gcode_comment ? tempDescription : "", path.is_force_no_extrusion());
+                        for (const auto &[offset, e] : adjusted_extrusion_segments(segment_start, line_length, path_total_length, dE)) {
+                            Point3 dest = offset >= line_length - EPSILON ?
+                                line.b :
+                                line.a + ((line.b - line.a).cast<double>() * (offset / line_length)).cast<coord_t>();
+                            gcode += m_writer.extrude_to_xy(
+                                this->point_to_gcode(dest.to_point()),
+                                e,
+                                GCodeWriter::full_gcode_comment ? tempDescription : "", path.is_force_no_extrusion());
+                        }
                     } else {
                         // Sloped extrusion
                         const auto [z_ratio, e_ratio] = sloped->interpolate(path_length / total_length);
@@ -7079,12 +7143,15 @@ std::string GCode::_extrude(const ExtrusionPath &path, std::string description, 
                                     tempDescription += Slic3r::format(" | Old Flow Value: %0.5f Length: %0.5f",oldE, line_length);
                                 }
                             }
-                            dE = apply_first_layer_start_prime(line_length, dE);
-                            dE = apply_visible_path_end_taper(segment_start, path_length, path_total_length, dE);
-                            gcode += m_writer.extrude_to_xy(
-                                this->point_to_gcode(line.b),
-                                dE,
-                                GCodeWriter::full_gcode_comment ? tempDescription : "", path.is_force_no_extrusion());
+                            for (const auto &[offset, e] : adjusted_extrusion_segments(segment_start, line_length, path_total_length, dE)) {
+                                Point dest = offset >= line_length - EPSILON ?
+                                    line.b :
+                                    line.a + ((line.b - line.a).cast<double>() * (offset / line_length)).cast<coord_t>();
+                                gcode += m_writer.extrude_to_xy(
+                                    this->point_to_gcode(dest),
+                                    e,
+                                    GCodeWriter::full_gcode_comment ? tempDescription : "", path.is_force_no_extrusion());
+                            }
                         }
                         break;
                     }
@@ -7251,9 +7318,12 @@ std::string GCode::_extrude(const ExtrusionPath &path, std::string description, 
                                                  GCodeWriter::full_gcode_comment ? tempDescription : "");
             } else if (sloped == nullptr) {
                 // Normal extrusion
-                dE = apply_first_layer_start_prime(line_length, dE);
-                dE = apply_visible_path_end_taper(segment_start, path_length, path_total_length, dE);
-                gcode += m_writer.extrude_to_xy(p.head<2>(), dE, GCodeWriter::full_gcode_comment ? tempDescription : "");
+                for (const auto &[offset, e] : adjusted_extrusion_segments(segment_start, line_length, path_total_length, dE)) {
+                    const Vec3d dest = offset >= line_length - EPSILON ?
+                        p :
+                        prev + (p - prev) * (offset / line_length);
+                    gcode += m_writer.extrude_to_xy(dest.head<2>(), e, GCodeWriter::full_gcode_comment ? tempDescription : "");
+                }
             } else {
                 // Sloped extrusion
                 const auto [z_ratio, e_ratio] = sloped->interpolate(path_length / total_length);
